@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="author" content="$CAPYRACE" />
+    <meta name="x-ogp-key" content="e0b78b21-e933-45a4-8840-0030a939afdc" id="ogp-key-meta" />
+    <title>CapyRace - Grand Prix</title>
+    <script>
+      const isExtErr = (msg) => msg && (typeof msg === 'string') && (msg.includes('isZerion') || msg.includes('MetaMask') || msg.includes('redefine property: isZerion') || msg.includes('Could not establish connection'));
+      window.addEventListener('error', (e) => {
+        if (isExtErr(e.message) || (e.error && isExtErr(e.error.message))) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', (e) => {
+        if (isExtErr(e.reason) || (e.reason && isExtErr(e.reason.message))) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      }, true);
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
