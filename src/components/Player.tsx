@@ -539,12 +539,13 @@ export function Player() {
     // Camera lag effect for speed
     const viewMode = useStore.getState().cameraView;
     
-    let offsetZ = -14; // Static distance behind to prevent rubber-banding
-    let offsetY = 7.5; // High up to prevent blocking
+    // Rigid and close third-person view
+    let offsetZ = -9.0;
+    let offsetY = 3.5;
 
     if (viewMode === 'first-person') {
         offsetZ = 0.5; // sit right behind/inside the windshield
-        offsetY = 3.2; // low to the ground
+        offsetY = 1.0; 
     }
 
     let cameraShakeX = 0;
@@ -552,18 +553,18 @@ export function Player() {
     
     // Extreme shake during boost
     if (boostRef.current > 0) {
-      cameraShakeX = (Math.random() - 0.5) * 0.4;
-      cameraShakeY = (Math.random() - 0.5) * 0.4;
+      cameraShakeX = (Math.random() - 0.5) * 0.15;
+      cameraShakeY = (Math.random() - 0.5) * 0.15;
     } 
     // Mild shake at high speeds
     else if (cameraSpeedFactor > 0.8) {
-      cameraShakeX = (Math.random() - 0.5) * 0.1;
-      cameraShakeY = (Math.random() - 0.5) * 0.1;
+      cameraShakeX = (Math.random() - 0.5) * 0.05;
+      cameraShakeY = (Math.random() - 0.5) * 0.05;
     }
     
     v_camOffset.set(cameraShakeX, offsetY + cameraShakeY, offsetZ).applyEuler(groupRef.current.rotation);
     let cameraTarget = newPos.clone().add(v_camOffset);
-    v_lookOffset.set(0, offsetY - 2.0, 0).applyEuler(groupRef.current.rotation).add(v_direction.multiplyScalar(20));
+    v_lookOffset.set(0, offsetY - 1.5, 0).applyEuler(groupRef.current.rotation).add(v_direction.multiplyScalar(30));
     let lookTarget = newPos.clone().add(v_lookOffset);
     
     if (gameState === 'MENU') {
@@ -589,8 +590,13 @@ export function Player() {
         }
     }
     
-    // Use a tighter lerp for a more rigid standard racing camera setup
-    state.camera.position.lerp(cameraTarget, gameState === 'MENU' ? 0.05 : (viewMode === 'first-person' ? 1.0 : 0.7));
+    // Hard-lock standard racing camera setup to prevent rubber-banding and the car shooting forward.
+    // Menu remains slow cinematic lerp.
+    if (gameState === 'MENU') {
+        state.camera.position.lerp(cameraTarget, 0.05);
+    } else {
+        state.camera.position.lerp(cameraTarget, viewMode === 'first-person' ? 1.0 : 0.95);
+    }
     state.camera.lookAt(lookTarget);
     audioSystem.updateListener(state.camera.position, lookTarget.clone().sub(state.camera.position).normalize(), state.camera.up);
     

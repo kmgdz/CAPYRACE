@@ -69,6 +69,17 @@ function WeatherParticles() {
   );
 }
 
+const c_sunriseColor = new THREE.Color('#FF8C00');
+const c_noonColor = new THREE.Color('#FFFFFF');
+const c_nightColor = new THREE.Color('#222244');
+const c_targetDirColor = new THREE.Color();
+const c_dayAmbientNeon = new THREE.Color('#4466ff');
+const c_dayAmbientDesert = new THREE.Color('#FFE4B5');
+const c_dayAmbientNormal = new THREE.Color('#ffffff');
+const c_nightAmbientSpace = new THREE.Color('#ffffff');
+const c_nightAmbientNormal = new THREE.Color('#111122');
+const c_targetAmbientColor = new THREE.Color();
+
 export function GameEnvironment() {
   const trackType = useStore(state => state.trackType);
   const gameState = useStore(state => state.gameState);
@@ -106,30 +117,26 @@ export function GameEnvironment() {
         dirLightRef.current.intensity = THREE.MathUtils.lerp(dirLightRef.current.intensity, targetDirIntensity, 0.1);
         
         // Color shifts to warm at sunset
-        const sunriseColor = new THREE.Color('#FF8C00');
-        const noonColor = new THREE.Color('#FFFFFF');
-        const nightColor = new THREE.Color('#222244');
-        
-        let targetDirColor = new THREE.Color();
         if (isNight) {
-            targetDirColor = nightColor;
+            c_targetDirColor.copy(c_nightColor);
         } else if (heightRatio < 0.3) {
-            targetDirColor = sunriseColor.clone().lerp(noonColor, heightRatio / 0.3);
+            c_targetDirColor.copy(c_sunriseColor).lerp(c_noonColor, heightRatio / 0.3);
         } else {
-            targetDirColor = noonColor;
+            c_targetDirColor.copy(c_noonColor);
         }
         
-        dirLightRef.current.color.lerp(targetDirColor, 0.1);
+        dirLightRef.current.color.lerp(c_targetDirColor, 0.1);
     }
 
     if (ambientLightRef.current) {
         const targetAmbIntensity = isNight ? 0.2 : heightRatio * 0.4 + 0.2;
         ambientLightRef.current.intensity = THREE.MathUtils.lerp(ambientLightRef.current.intensity, targetAmbIntensity, 0.1);
         
-        const dayAmbient = new THREE.Color(trackType === 'neon_city' ? '#4466ff' : (trackType === 'desert' ? '#FFE4B5' : '#ffffff'));
-        const nightAmbient = new THREE.Color(trackType === 'space' ? '#ffffff' : '#111122');
+        const dayAmbient = trackType === 'neon_city' ? c_dayAmbientNeon : (trackType === 'desert' ? c_dayAmbientDesert : c_dayAmbientNormal);
+        const nightAmbient = trackType === 'space' ? c_nightAmbientSpace : c_nightAmbientNormal;
         
-        ambientLightRef.current.color.lerp(isNight ? nightAmbient : dayAmbient, 0.1);
+        c_targetAmbientColor.copy(isNight ? nightAmbient : dayAmbient);
+        ambientLightRef.current.color.lerp(c_targetAmbientColor, 0.1);
     }
   });
 

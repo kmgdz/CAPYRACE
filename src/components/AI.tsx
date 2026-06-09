@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { TRACKS } from '../lib/track';
 import { mapData } from '../lib/mapData';
@@ -172,9 +172,11 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
       trailColor = '#FFFFFF';
   }
 
+  const resolvedTrailColor = useMemo(() => new THREE.Color(trailColor), [trailColor]);
+
   return (
     <group ref={groupRef}>
-      <Trail width={trailWidth} length={trailLength} color={new THREE.Color(trailColor)} attenuation={(t) => t * t}>
+      <Trail width={trailWidth} length={trailLength} color={resolvedTrailColor} attenuation={(t) => t * t}>
         <group ref={meshRef} scale={1.5}>
            <KartVisuals capyRef={capyRef} color={color} type={kartType} isBoosting={gameState === 'PLAYING' && Math.random() > 0.8} />
         </group>

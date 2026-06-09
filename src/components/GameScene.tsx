@@ -43,6 +43,14 @@ function GameLogic() {
 const CHROMATIC_OFFSET = new THREE.Vector2(0.001, 0.001);
 const DOF_TARGET = new THREE.Vector3(0, 0, 10);
 
+const c_nightBgColor = new THREE.Color('#000000');
+const c_dayBgNeon = new THREE.Color('#050510');
+const c_dayBgDesert = new THREE.Color('#FF9933');
+const c_dayBgJungle = new THREE.Color('#A5D6A7');
+const c_dayBgIcy = new THREE.Color('#E1F5FE');
+const c_dayBgSpace = new THREE.Color('#000000');
+const c_targetColor = new THREE.Color();
+
 function DynamicEnvironmentEffects() {
   const trackType = useStore(state => state.trackType);
   
@@ -55,20 +63,21 @@ function DynamicEnvironmentEffects() {
     const heightRatio = Math.max(0, Math.sin(sunTheta));
     const isNight = heightRatio === 0;
 
-    let dayBgColor = new THREE.Color(
-      trackType === 'neon_city' ? '#050510' : 
-      trackType === 'desert' ? '#FF9933' : 
-      trackType === 'jungle' ? '#A5D6A7' : 
-      trackType === 'icy_mountain' ? '#E1F5FE' : 
-      '#000000'
-    );
-    const nightBgColor = new THREE.Color('#000000');
+    let dayBgColor = c_dayBgSpace;
+    if (trackType === 'neon_city') dayBgColor = c_dayBgNeon;
+    else if (trackType === 'desert') dayBgColor = c_dayBgDesert;
+    else if (trackType === 'jungle') dayBgColor = c_dayBgJungle;
+    else if (trackType === 'icy_mountain') dayBgColor = c_dayBgIcy;
     
-    const targetColor = isNight ? nightBgColor : dayBgColor.clone().lerp(nightBgColor, 1 - heightRatio);
+    if (isNight) {
+        c_targetColor.copy(c_nightBgColor);
+    } else {
+        c_targetColor.copy(dayBgColor).lerp(c_nightBgColor, 1 - heightRatio);
+    }
 
-    state.scene.background = targetColor;
+    state.scene.background = c_targetColor;
     if (state.scene.fog && state.scene.fog instanceof THREE.Fog) {
-       state.scene.fog.color.copy(targetColor);
+       state.scene.fog.color.copy(c_targetColor);
     }
   });
   
