@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useStore } from '../store';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Minimap } from './Minimap';
@@ -46,8 +46,284 @@ function Leaderboard() {
   );
 }
 
+function PlayingHUD() {
+  const lap = useStore(state => state.lap);
+  const maxLaps = useStore(state => state.maxLaps);
+  const activePowerup = useStore(state => state.activePowerup);
+
+  const timeRef = useRef<HTMLParagraphElement>(null);
+  const speedRef = useRef<HTMLSpanElement>(null);
+  const nitroRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef<HTMLParagraphElement>(null);
+  const rpmRef = useRef<SVGPathElement>(null);
+
+  useEffect(() => {
+    let frameId: number;
+    const loop = () => {
+      const state = useStore.getState();
+      
+      if (timeRef.current) {
+        timeRef.current.innerText = formatTime(state.time);
+      }
+      
+      if (speedRef.current) {
+        speedRef.current.innerText = Math.floor(state.speed).toString();
+      }
+
+      if (posRef.current) {
+        let suffix = 'th';
+        if (state.position === 1) suffix = 'st';
+        else if (state.position === 2) suffix = 'nd';
+        else if (state.position === 3) suffix = 'rd';
+        posRef.current.innerHTML = `${state.position}<span class="text-xl text-white/50">${suffix}</span> / 6`;
+      }
+
+      if (rpmRef.current) {
+        rpmRef.current.style.strokeDashoffset = String(210 - (Math.min(state.speed / 100, 1) * 210));
+      }
+
+      if (nitroRef.current) {
+        nitroRef.current.style.width = `${Math.min(100, Math.max(0, state.nitro))}%`;
+        if (state.nitro > 95) {
+          nitroRef.current.className = `h-full transition-all duration-75 bg-white shadow-[0_0_10px_rgba(255,255,255,1)] animate-pulse`;
+        } else {
+          nitroRef.current.className = `h-full transition-all duration-75 bg-gradient-to-r from-orange-500 to-yellow-400`;
+        }
+      }
+
+      frameId = requestAnimationFrame(loop);
+    };
+    loop();
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  return (
+    <motion.div 
+      key="playing"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 p-6 flex flex-col justify-between"
+    >
+      <div className="flex justify-between items-start">
+        <div className="flex gap-4">
+          <div className="bg-black/50 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10">
+            <p className="text-cyan-400 text-xs font-bold tracking-widest mb-1">POS</p>
+            <p ref={posRef} className="text-4xl font-black text-white"></p>
+          </div>
+          <div className="bg-black/50 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10">
+            <p className="text-orange-400 text-xs font-bold tracking-widest mb-1">LAP</p>
+            <p className="text-4xl font-black text-white">{lap} <span className="text-xl text-white/50">/ {maxLaps}</span></p>
+          </div>
+        </div>
+        
+        <div className="flex-1 flex justify-center pointer-events-none">
+           <AnimatePresence>
+               {activePowerup && (
+                   <motion.div 
+                     initial={{ scale: 0, y: -50 }} 
+                     animate={{ scale: 1, y: 0 }} 
+                     exit={{ scale: 0, opacity: 0 }}
+                     className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center border-4 ${activePowerup === 'hyper-speed' ? 'border-orange-500 bg-orange-500/20 shadow-[0_0_30px_rgba(255,100,0,0.8)]' : 'border-cyan-400 bg-cyan-400/20 shadow-[0_0_30px_rgba(0,255,255,0.8)]'} backdrop-blur-md`}
+                   >
+                      <span className="text-4xl mb-1">{activePowerup === 'hyper-speed' ? '⚡' : '🛡️'}</span>
+                      <span className={`text-[10px] font-black tracking-widest ${activePowerup === 'hyper-speed' ? 'text-orange-400' : 'text-cyan-400'}`}>
+                         {activePowerup === 'hyper-speed' ? 'BOOST' : 'SHIELD'}
+                      </span>
+                   </motion.div>
+               )}
+           </AnimatePresence>
+        </div>
+
+        <div className="bg-black/50 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 text-right">
+          <p className="text-orange-400 text-xs font-bold tracking-widest mb-1">TIME</p>
+          <p ref={timeRef} className="text-3xl font-mono text-white">0:00.00</p>
+        </div>
+      </div>
+      
+      <div className="flex justify-start items-end pointer-events-auto">
+        <div className="relative w-48 h-48 ml-4 mb-4 flex flex-col items-center justify-center">
+          <svg className="absolute inset-0 w-full h-full drop-shadow-[0_0_15px_rgba(255,100,0,0.6)]" viewBox="0 0 100 100">
+            <path 
+              d="M 20 80 A 45 45 0 1 1 80 80" 
+              fill="none" 
+              stroke="rgba(255, 255, 255, 0.1)" 
+              strokeWidth="8" 
+              strokeLinecap="round" 
+            />
+            <path 
+              ref={rpmRef}
+              d="M 20 80 A 45 45 0 1 1 80 80" 
+              fill="none" 
+              stroke="url(#speedGradient)" 
+              strokeWidth="8" 
+              strokeLinecap="round"
+              strokeDasharray="210"
+              strokeDashoffset="210"
+              className="transition-all duration-75"
+            />
+             {Array.from({ length: 9 }).map((_, i) => {
+              const angle = -225 + i * (270 / 8); 
+              const isRedline = i >= 6;
+              return (
+                  <g key={i} transform={`rotate(${angle} 50 50)`}>
+                      <line x1="50" y1="10" x2="50" y2="15" stroke={isRedline ? "#ef4444" : "#ffffff"} strokeWidth="2" />
+                  </g>
+              );
+            })}
+            
+            <defs>
+              <linearGradient id="speedGradient" x1="0%" y1="100%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#3b82f6" />
+                <stop offset="50%" stopColor="#f97316" />
+                <stop offset="100%" stopColor="#ef4444" />
+              </linearGradient>
+            </defs>
+          </svg>
+          
+          <div className="absolute inset-0 flex flex-col items-center justify-center pt-8">
+            <span ref={speedRef} className="text-5xl font-black text-white italic tracking-tighter drop-shadow-[0_2px_10px_rgba(255,100,0,0.8)]">
+              0
+            </span>
+            <span className="text-orange-400 text-xs font-bold tracking-widest mt-1">KM/H</span>
+            
+            <div className="mt-2 w-24 h-2 bg-black/60 rounded-full overflow-hidden border border-white/20 shadow-[0_0_10px_rgba(0,0,0,0.5)]">
+               <div 
+                ref={nitroRef}
+                className={`h-full transition-all duration-75 bg-gradient-to-r from-orange-500 to-yellow-400`}
+                style={{ width: '0%' }}
+               />
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <Minimap />
+    </motion.div>
+  );
+}
+
+function FinishedHUD({ bestTime, submitLeaderboard, playerName, setPlayerName, hasSubmitted, setHasSubmitted, resetRace }: any) {
+  const time = useStore(state => state.time);
+  
+  return (
+    <motion.div 
+      key="finished"
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center backdrop-blur-sm z-50 overflow-y-auto py-10"
+    >
+      <div className="bg-black border border-cyan-500/30 p-12 shadow-[0_0_50px_rgba(0,255,255,0.15)] flex flex-col items-center max-w-lg w-full rounded-2xl">
+        <h2 className="text-cyan-400 text-6xl font-black italic tracking-tighter mb-2 drop-shadow-[0_0_15px_rgba(0,255,255,0.5)]">RACE OVER</h2>
+        
+        {(() => {
+          let medal = null;
+          let label = '';
+          let color = '';
+          if (time <= 65) {
+              medal = '🏆';
+              label = 'GOLD MEDAL';
+              color = 'text-yellow-400 drop-shadow-[0_0_15px_rgba(255,215,0,0.8)]';
+          } else if (time <= 75) {
+              medal = '🥈';
+              label = 'SILVER MEDAL';
+              color = 'text-gray-300 drop-shadow-[0_0_15px_rgba(192,192,192,0.8)]';
+          } else if (time <= 90) {
+              medal = '🥉';
+              label = 'BRONZE MEDAL';
+              color = 'text-amber-600 drop-shadow-[0_0_15px_rgba(205,127,50,0.8)]';
+          }
+          
+          if (medal) {
+              return (
+                <div className="flex flex-col items-center mb-6 mt-4 animate-bounce">
+                    <span className="text-6xl mb-2">{medal}</span>
+                    <span className={`text-2xl font-black ${color} tracking-widest`}>{label}</span>
+                </div>
+          );
+        }
+        })()}
+
+        <p className="text-white text-2xl font-mono mb-4 mt-4">Time: {formatTime(time)}</p>
+        {bestTime && bestTime < time && (
+          <p className="text-yellow-400 text-lg font-mono mb-8">Best: {formatTime(bestTime)}</p>
+        )}
+        {(!bestTime || time < bestTime) && (
+          <p className="text-yellow-400 text-lg font-mono mb-2 font-bold animate-pulse">NEW BEST TIME!</p>
+        )}
+        
+        <div className="flex flex-col items-center gap-6 my-6 min-w-[300px]">
+          <Leaderboard />
+          
+          {!hasSubmitted ? (
+              <div className="flex gap-2 w-full">
+                <input 
+                  type="text" 
+                  placeholder="ENTER INITIALS" 
+                  value={playerName}
+                  onChange={e => setPlayerName(e.target.value.toUpperCase().slice(0, 3))}
+                  className="bg-white/10 border border-white/20 text-white font-mono px-4 py-2 w-full rounded focus:outline-none focus:border-cyan-400 uppercase text-center tracking-[0.5em]"
+                />
+                <button 
+                  onClick={() => {
+                    if(playerName) {
+                      submitLeaderboard(playerName, time);
+                      setHasSubmitted(true);
+                    }
+                  }}
+                  disabled={!playerName}
+                  className="bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-400 border border-cyan-500 hover:border-cyan-300 px-6 py-2 rounded font-bold tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  SUBMIT
+                </button>
+              </div>
+          ) : (
+            <div className="text-cyan-400 font-bold tracking-widest border border-cyan-500/30 px-6 py-2 rounded bg-cyan-500/10">
+              SCORE SUBMITTED
+            </div>
+          )}
+        </div>
+        
+        <div className="flex gap-4 mt-4 w-full">
+           <button 
+             onClick={() => {
+                 useStore.getState().setGameState('REPLAY');
+             }}
+             className="flex-1 px-8 py-3 bg-white/5 hover:bg-white/10 border border-white/20 text-white font-bold rounded tracking-widest transition-colors flex items-center justify-center gap-2"
+           >
+             <span>🎥</span> VIEW REPLAY
+           </button>
+           <button 
+             onClick={resetRace}
+             className="flex-1 px-8 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded tracking-widest transition-colors shadow-[0_0_15px_rgba(255,100,0,0.4)]"
+           >
+             PLAY AGAIN
+           </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export function UI() {
-  const { gameState, volume, cameraView, lap, maxLaps, time, speed, nitro, position, resetRace, bestTime, setGameState, setVolume, setCameraView, kartType, setKartType, kartColor, setKartColor, trackType, setTrackType, weather, setWeather, activePowerup, submitLeaderboard } = useStore();
+  const gameState = useStore(state => state.gameState);
+  const volume = useStore(state => state.volume);
+  const cameraView = useStore(state => state.cameraView);
+  const bestTime = useStore(state => state.bestTime);
+  const kartType = useStore(state => state.kartType);
+  const kartColor = useStore(state => state.kartColor);
+  const trackType = useStore(state => state.trackType);
+  const weather = useStore(state => state.weather);
+
+  const resetRace = useStore(state => state.resetRace);
+  const setGameState = useStore(state => state.setGameState);
+  const setVolume = useStore(state => state.setVolume);
+  const setCameraView = useStore(state => state.setCameraView);
+  const setKartType = useStore(state => state.setKartType);
+  const setKartColor = useStore(state => state.setKartColor);
+  const setTrackType = useStore(state => state.setTrackType);
+  const setWeather = useStore(state => state.setWeather);
+  const submitLeaderboard = useStore(state => state.submitLeaderboard);
 
   const [countdownText, setCountdownText] = useState('3');
   const [playerName, setPlayerName] = useState('');
@@ -317,113 +593,7 @@ export function UI() {
           </motion.div>
         )}
 
-        {gameState === 'PLAYING' && (
-          <motion.div 
-            key="playing"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 p-6 flex flex-col justify-between"
-          >
-            <div className="flex justify-between items-start">
-              <div className="flex gap-4">
-                <div className="bg-black/50 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10">
-                  <p className="text-cyan-400 text-xs font-bold tracking-widest mb-1">POS</p>
-                  <p className="text-4xl font-black text-white">{position}<span className="text-xl text-white/50">{position === 1 ? 'st' : position === 2 ? 'nd' : position === 3 ? 'rd' : 'th'}</span> / 6</p>
-                </div>
-                <div className="bg-black/50 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10">
-                  <p className="text-orange-400 text-xs font-bold tracking-widest mb-1">LAP</p>
-                  <p className="text-4xl font-black text-white">{lap} <span className="text-xl text-white/50">/ {maxLaps}</span></p>
-                </div>
-              </div>
-              
-              {/* Powerup Display */}
-              <div className="flex-1 flex justify-center pointer-events-none">
-                 <AnimatePresence>
-                     {activePowerup && (
-                         <motion.div 
-                           initial={{ scale: 0, y: -50 }} 
-                           animate={{ scale: 1, y: 0 }} 
-                           exit={{ scale: 0, opacity: 0 }}
-                           className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center border-4 ${activePowerup === 'hyper-speed' ? 'border-orange-500 bg-orange-500/20 shadow-[0_0_30px_rgba(255,100,0,0.8)]' : 'border-cyan-400 bg-cyan-400/20 shadow-[0_0_30px_rgba(0,255,255,0.8)]'} backdrop-blur-md`}
-                         >
-                            <span className="text-4xl mb-1">{activePowerup === 'hyper-speed' ? '⚡' : '🛡️'}</span>
-                            <span className={`text-[10px] font-black tracking-widest ${activePowerup === 'hyper-speed' ? 'text-orange-400' : 'text-cyan-400'}`}>
-                               {activePowerup === 'hyper-speed' ? 'BOOST' : 'SHIELD'}
-                            </span>
-                         </motion.div>
-                     )}
-                 </AnimatePresence>
-              </div>
-
-              <div className="bg-black/50 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10 text-right">
-                <p className="text-orange-400 text-xs font-bold tracking-widest mb-1">TIME</p>
-                <p className="text-3xl font-mono text-white">{formatTime(time)}</p>
-              </div>
-            </div>
-            
-            <div className="flex justify-start items-end pointer-events-auto">
-              <div className="relative w-48 h-48 ml-4 mb-4 flex flex-col items-center justify-center">
-                <svg className="absolute inset-0 w-full h-full drop-shadow-[0_0_15px_rgba(255,100,0,0.6)]" viewBox="0 0 100 100">
-                  {/* Background Track */}
-                  <path 
-                    d="M 20 80 A 45 45 0 1 1 80 80" 
-                    fill="none" 
-                    stroke="rgba(255, 255, 255, 0.1)" 
-                    strokeWidth="8" 
-                    strokeLinecap="round" 
-                  />
-                  {/* Colored RPM Arc */}
-                  <path 
-                    d="M 20 80 A 45 45 0 1 1 80 80" 
-                    fill="none" 
-                    stroke="url(#speedGradient)" 
-                    strokeWidth="8" 
-                    strokeLinecap="round"
-                    strokeDasharray="210"
-                    strokeDashoffset={210 - (Math.min(speed / 100, 1) * 210)}
-                    className="transition-all duration-75"
-                  />
-                  {/* Gauge Notches */}
-                  {Array.from({ length: 9 }).map((_, i) => {
-                    const angle = -225 + i * (270 / 8); 
-                    const isRedline = i >= 6;
-                    return (
-                        <g key={i} transform={`rotate(${angle} 50 50)`}>
-                            <line x1="50" y1="10" x2="50" y2="15" stroke={isRedline ? "#ef4444" : "#ffffff"} strokeWidth="2" />
-                        </g>
-                    );
-                  })}
-                  
-                  <defs>
-                    <linearGradient id="speedGradient" x1="0%" y1="100%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#3b82f6" />
-                      <stop offset="50%" stopColor="#f97316" />
-                      <stop offset="100%" stopColor="#ef4444" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                
-                <div className="absolute inset-0 flex flex-col items-center justify-center pt-8">
-                  <span className="text-5xl font-black text-white italic tracking-tighter drop-shadow-[0_2px_10px_rgba(255,100,0,0.8)]">
-                    {Math.floor(speed)}
-                  </span>
-                  <span className="text-orange-400 text-xs font-bold tracking-widest mt-1">KM/H</span>
-                  
-                  {/* Nitro Bar */}
-                  <div className="mt-2 w-24 h-2 bg-black/60 rounded-full overflow-hidden border border-white/20 shadow-[0_0_10px_rgba(0,0,0,0.5)]">
-                    <div 
-                      className={`h-full transition-all duration-75 ${nitro > 95 ? 'bg-white shadow-[0_0_10px_rgba(255,255,255,1)] animate-pulse' : 'bg-gradient-to-r from-orange-500 to-yellow-400'}`}
-                      style={{ width: `${Math.min(100, Math.max(0, nitro))}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <Minimap />
-          </motion.div>
-        )}
+        {gameState === 'PLAYING' && <PlayingHUD />}
 
         {gameState === 'PAUSED' && (
           <motion.div 
@@ -497,109 +667,19 @@ export function UI() {
         )}
 
         {gameState === 'FINISHED' && (
-          <motion.div 
-            key="finished"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center pointer-events-auto"
-          >
-            <h2 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 mb-2 uppercase italic tracking-tighter">
-              FINISH!
-            </h2>
-            
-            {(() => {
-              let medal = null;
-              let label = '';
-              let color = '';
-              if (time <= 65) {
-                 medal = '🏆';
-                 label = 'GOLD MEDAL';
-                 color = 'text-yellow-400 drop-shadow-[0_0_15px_rgba(255,215,0,0.8)]';
-              } else if (time <= 75) {
-                 medal = '🥈';
-                 label = 'SILVER MEDAL';
-                 color = 'text-gray-300 drop-shadow-[0_0_15px_rgba(192,192,192,0.8)]';
-              } else if (time <= 90) {
-                 medal = '🥉';
-                 label = 'BRONZE MEDAL';
-                 color = 'text-amber-600 drop-shadow-[0_0_15px_rgba(205,127,50,0.8)]';
-              }
-              
-              if (medal) {
-                 return (
-                   <div className="flex flex-col items-center mb-6 mt-4 animate-bounce">
-                      <span className="text-8xl drop-shadow-2xl">{medal}</span>
-                      <span className={`text-3xl font-black tracking-widest mt-4 ${color}`}>{label}</span>
-                   </div>
-                 );
-              }
-              return (
-                   <div className="flex flex-col items-center mb-6 mt-4">
-                      <span className="text-gray-400 text-2xl font-bold tracking-widest mt-2">NO MEDAL</span>
-                      <span className="text-gray-500 text-sm mt-2 font-mono">Beat 1:30.00 for Bronze!</span>
-                   </div>
-              );
-            })()}
-
-            <p className="text-white text-2xl font-mono mb-4 mt-4">Time: {formatTime(time)}</p>
-            {bestTime && bestTime < time && (
-              <p className="text-yellow-400 text-lg font-mono mb-8">Best: {formatTime(bestTime)}</p>
-            )}
-            {(!bestTime || time < bestTime) && (
-              <p className="text-yellow-400 text-lg font-mono mb-2 font-bold animate-pulse">NEW BEST TIME!</p>
-            )}
-            
-            <div className="flex flex-col items-center gap-6 my-6 min-w-[300px]">
-              <Leaderboard />
-              
-              {!hasSubmitted ? (
-                 <div className="flex gap-2 w-full">
-                    <input 
-                      type="text" 
-                      placeholder="ENTER INITIALS" 
-                      value={playerName}
-                      onChange={e => setPlayerName(e.target.value.toUpperCase().slice(0, 3))}
-                      className="bg-white/10 border border-white/20 text-white font-mono px-4 py-2 w-full rounded focus:outline-none focus:border-cyan-400 uppercase text-center tracking-[0.5em]"
-                    />
-                    <button 
-                      onClick={() => {
-                        if(playerName) {
-                          submitLeaderboard(playerName, time);
-                          setHasSubmitted(true);
-                        }
-                      }}
-                      className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded font-bold"
-                    >
-                      SUBMIT
-                    </button>
-                 </div>
-              ) : (
-                 <p className="text-cyan-400 font-bold mb-4">RECORD SAVED!</p>
-              )}
-            </div>
-
-            <div className="flex gap-4">
-               <button 
-                 onClick={() => {
-                    useStore.getState().setGameState('REPLAY');
-                 }}
-                 className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xl rounded-full shadow-[0_0_15px_rgba(0,255,255,0.4)] transition-all"
-               >
-                 WATCH REPLAY
-               </button>
-               <button 
-                 onClick={() => {
-                    setHasSubmitted(false);
-                    setPlayerName('');
-                    handleStart();
-                 }}
-                 className="px-10 py-3 bg-white hover:bg-gray-200 text-black font-bold text-xl rounded-full shadow-lg transition-all"
-               >
-                 RACE AGAIN
-               </button>
-            </div>
-          </motion.div>
+          <FinishedHUD 
+            bestTime={bestTime}
+            submitLeaderboard={submitLeaderboard}
+            playerName={playerName}
+            setPlayerName={setPlayerName}
+            hasSubmitted={hasSubmitted}
+            setHasSubmitted={setHasSubmitted}
+            resetRace={() => {
+              setHasSubmitted(false);
+              setPlayerName('');
+              handleStart();
+            }}
+          />
         )}
       </AnimatePresence>
     </div>

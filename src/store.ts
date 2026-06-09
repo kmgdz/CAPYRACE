@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+export const gameRacers: Record<string, { progress: number, isPlayer: boolean }> = {};
+
 export type GameState = 'MENU' | 'COUNTDOWN' | 'PLAYING' | 'PAUSED' | 'FINISHED' | 'REPLAY';
 export type KartType = 'classic' | 'f1' | 'cyber';
 export type TrackType = 'neon_city' | 'desert' | 'space' | 'jungle' | 'icy_mountain';

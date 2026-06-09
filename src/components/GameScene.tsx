@@ -1,11 +1,10 @@
-import { useStore } from '../store';
+import { useStore, gameRacers } from '../store';
 import { useFrame } from '@react-three/fiber';
 import { Track } from './Track';
 import { Player } from './Player';
 import { AI } from './AI';
 import { GameEnvironment } from './Environment';
-import { Sparkles } from '@react-three/drei';
-import { EffectComposer, Bloom, Vignette, ToneMapping, ChromaticAberration, N8AO, Noise, DepthOfField } from '@react-three/postprocessing';
+import { EffectComposer, Bloom, Vignette, ToneMapping, ChromaticAberration } from '@react-three/postprocessing';
 import { useRef } from 'react';
 import * as THREE from 'three';
 
@@ -15,11 +14,23 @@ function GameLogic() {
   useFrame((_, delta) => {
     if (gameState === 'PLAYING') {
       useStore.setState((state) => {
-        const sortedRacers = Object.values(state.racers).sort((a, b) => b.progress - a.progress);
-        const playerPos = sortedRacers.findIndex(r => r.isPlayer) + 1;
-        return { 
+        let playerProgress = 0;
+        let pPos = 1;
+        // get player progress
+        if (gameRacers['player']) {
+            playerProgress = gameRacers['player'].progress;
+        }
+        
+        // Count how many AIs are ahead of player
+        for (const key in gameRacers) {
+           if (key !== 'player' && gameRacers[key].progress > playerProgress) {
+               pPos++;
+           }
+        }
+        
+        return {
            time: state.time + delta,
-           position: playerPos > 0 ? playerPos : state.position 
+           position: pPos
         };
       });
     }
@@ -81,8 +92,7 @@ export function GameScene() {
       <GameEnvironment />
       <GameLogic />
       
-      {/* High-speed sparkle wind effect */}
-      <Sparkles count={800} scale={300} size={15} speed={1.5} opacity={0.3} color="#ffffff" />
+      {/* Sparkles removed for performance */}
       
       <Track />
       <Player />
@@ -92,13 +102,10 @@ export function GameScene() {
       <AI index={3} offset={0.35} color="#9933FF" speedOffset={0.97} />
       <AI index={4} offset={0.05} color="#00FF66" speedOffset={0.99} />
 
-      {/* High Quality Post-Processing */}
-      <EffectComposer>
-        <N8AO aoRadius={2} intensity={2} halfRes={true} color="black" />
-        <Bloom luminanceThreshold={0.5} mipmapBlur intensity={1.5} />
+      {/* Lightweight Post-Processing */}
+      <EffectComposer disableNormalPass>
+        <Bloom luminanceThreshold={0.5} mipmapBlur intensity={1.0} />
         <ChromaticAberration offset={CHROMATIC_OFFSET} />
-        <DepthOfField target={DOF_TARGET} focalLength={0.02} bokehScale={2} height={480} />
-        <Noise opacity={0.025} />
         <Vignette eskil={false} offset={0.1} darkness={1.1} />
         <ToneMapping />
       </EffectComposer>

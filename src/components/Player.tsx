@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useStore } from '../store';
+import { useStore, gameRacers } from '../store';
 import { TRACKS, getTrackProgress, getClosestPointOnPath } from '../lib/track';
 import { mapData } from '../lib/mapData';
 import * as THREE from 'three';
@@ -8,6 +8,14 @@ import { useKeyboardControls, Trail, Sparkles } from '@react-three/drei';
 
 import { KartVisuals } from './KartVisuals';
 import { audioSystem } from '../audio';
+
+const v_direction = new THREE.Vector3();
+const v_curvePoint = new THREE.Vector3();
+const v_scaleBoost = new THREE.Vector3(0.9, 0.9, 1.2);
+const v_scaleNorm = new THREE.Vector3(1, 1, 1);
+const v_camOffset = new THREE.Vector3();
+const v_lookOffset = new THREE.Vector3();
+const v_pushDir = new THREE.Vector3();
 
 export function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -253,8 +261,8 @@ export function Player() {
     // Move forward
     // If drifting, slightly slide sideways instead of going directly forward.
     // For simplicity, we just use standard forward direction but with visual lean.
-    const direction = new THREE.Vector3(0, 0, 1).applyEuler(groupRef.current.rotation);
-    const newPos = groupRef.current.position.clone().addScaledVector(direction, currentVel * delta);
+    v_direction.set(0, 0, 1).applyEuler(groupRef.current.rotation);
+    const newPos = groupRef.current.position.clone().addScaledVector(v_direction, currentVel * delta);
 
     // Boost Pad Collision
     if (gameState === 'PLAYING') {
@@ -396,11 +404,11 @@ export function Player() {
         hitWallTimerRef.current = 0.5; // 0.5 second of sparks
         // Wall collision! Clamp position securely inside.
         // Get direction from track curve to our unconstrained position
-        const curvePoint = new THREE.Vector3(closest.point.x, newPos.y, closest.point.z);
-        const pushDir = newPos.clone().sub(curvePoint).normalize();
+        v_curvePoint.set(closest.point.x, newPos.y, closest.point.z);
+        v_pushDir.copy(newPos).sub(v_curvePoint).normalize();
         
         // Snap explicitly to the absolute mathematical bound
-        newPos.copy(curvePoint).add(pushDir.multiplyScalar(trackWidth));
+        newPos.copy(v_curvePoint).add(v_pushDir.multiplyScalar(trackWidth));
         
         // Harsh friction
         currentVel *= 0.6;
@@ -447,12 +455,10 @@ export function Player() {
     velocityRef.current = currentVel;
     
     // Send position to store for minimap and standings
-    useStore.getState().updateRacer('player', {
-        x: newPos.x,
-        z: newPos.z,
+    gameRacers['player'] = {
         progress: lap + progressIndexRef.current / pathPoints.length,
         isPlayer: true
-    });
+    };
 
     mapData.playerTargetX = newPos.x;
     mapData.playerTargetZ = newPos.z;
@@ -494,10 +500,10 @@ export function Player() {
     meshRef.current.rotation.z = THREE.MathUtils.lerp(meshRef.current.rotation.z, leanTarget, 0.1);
 
     // Boost scale effect
-    if (boostRef.current > 0) {
-        meshRef.current.scale.lerp(new THREE.Vector3(0.9, 0.9, 1.2), 0.2);
+    if (boostRef.current > 0 || useStore.getState().nitro > 95) {
+        meshRef.current.scale.lerp(v_scaleBoost, 0.2);
     } else {
-        meshRef.current.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+        meshRef.current.scale.lerp(v_scaleNorm, 0.1);
     }
 
     if (capyRef.current) {
@@ -521,9 +527,9 @@ export function Player() {
     const cameraSpeedFactor = Math.min(Math.abs(currentVel) / currentMaxSpeed, 1);
     
     // Dynamic FOV based on speed, boosting, and drifting for cinematic feel
-    let targetFov = 60 + cameraSpeedFactor * 20; 
-    if (boostRef.current > 0) targetFov += 10;
-    if (keys.drift) targetFov += 5;
+    let targetFov = 65 + cameraSpeedFactor * 5; 
+    if (boostRef.current > 0) targetFov += 5;
+    if (keys.drift) targetFov += 2;
 
     if ((state.camera as THREE.PerspectiveCamera).fov) {
         (state.camera as THREE.PerspectiveCamera).fov = THREE.MathUtils.lerp((state.camera as THREE.PerspectiveCamera).fov, targetFov, 0.1);
@@ -533,8 +539,8 @@ export function Player() {
     // Camera lag effect for speed
     const viewMode = useStore.getState().cameraView;
     
-    let offsetZ = -10 - cameraSpeedFactor * 3;
-    let offsetY = 4.5;
+    let offsetZ = -14; // Static distance behind to prevent rubber-banding
+    let offsetY = 7.5; // High up to prevent blocking
 
     if (viewMode === 'first-person') {
         offsetZ = 0.5; // sit right behind/inside the windshield
@@ -546,8 +552,8 @@ export function Player() {
     
     // Extreme shake during boost
     if (boostRef.current > 0) {
-      cameraShakeX = (Math.random() - 0.5) * 0.6;
-      cameraShakeY = (Math.random() - 0.5) * 0.6;
+      cameraShakeX = (Math.random() - 0.5) * 0.4;
+      cameraShakeY = (Math.random() - 0.5) * 0.4;
     } 
     // Mild shake at high speeds
     else if (cameraSpeedFactor > 0.8) {
@@ -555,9 +561,10 @@ export function Player() {
       cameraShakeY = (Math.random() - 0.5) * 0.1;
     }
     
-    const cameraOffset = new THREE.Vector3(cameraShakeX, offsetY + cameraShakeY, offsetZ).applyEuler(groupRef.current.rotation);
-    let cameraTarget = newPos.clone().add(cameraOffset);
-    let lookTarget = newPos.clone().add(new THREE.Vector3(0, offsetY - 2.0, 0).applyEuler(groupRef.current.rotation).add(direction.multiplyScalar(20)));
+    v_camOffset.set(cameraShakeX, offsetY + cameraShakeY, offsetZ).applyEuler(groupRef.current.rotation);
+    let cameraTarget = newPos.clone().add(v_camOffset);
+    v_lookOffset.set(0, offsetY - 2.0, 0).applyEuler(groupRef.current.rotation).add(v_direction.multiplyScalar(20));
+    let lookTarget = newPos.clone().add(v_lookOffset);
     
     if (gameState === 'MENU') {
         const time = Date.now() * 0.0005;
@@ -565,23 +572,25 @@ export function Player() {
         cameraTarget.x = newPos.x + Math.sin(time) * radius;
         cameraTarget.z = newPos.z + Math.cos(time) * radius;
         cameraTarget.y = newPos.y + 5;
-        lookTarget = newPos.clone().add(new THREE.Vector3(0, 2, 0));
+        v_lookOffset.set(0, 2, 0);
+        lookTarget = newPos.clone().add(v_lookOffset);
     } else {
         // Clamp camera to track bounds so it doesn't clip through walls
         const camClosest = getClosestPointOnPath(pathPoints, cameraTarget, progressIndexRef.current, 40);
         
-        const CAM_TRACK_WIDTH = 16; 
+        const CAM_TRACK_WIDTH = 15; 
         if (camClosest.distance > CAM_TRACK_WIDTH && viewMode === 'third-person') {
-            const curvePoint = new THREE.Vector3(camClosest.point.x, cameraTarget.y, camClosest.point.z);
-            const pushDir = cameraTarget.clone().sub(curvePoint);
-            pushDir.y = 0;
-            pushDir.normalize();
-            cameraTarget.x = curvePoint.x + pushDir.x * CAM_TRACK_WIDTH;
-            cameraTarget.z = curvePoint.z + pushDir.z * CAM_TRACK_WIDTH;
+            v_curvePoint.set(camClosest.point.x, cameraTarget.y, camClosest.point.z);
+            v_pushDir.copy(cameraTarget).sub(v_curvePoint);
+            v_pushDir.y = 0;
+            v_pushDir.normalize();
+            cameraTarget.x = v_curvePoint.x + v_pushDir.x * CAM_TRACK_WIDTH;
+            cameraTarget.z = v_curvePoint.z + v_pushDir.z * CAM_TRACK_WIDTH;
         }
     }
     
-    state.camera.position.lerp(cameraTarget, gameState === 'MENU' ? 0.05 : (viewMode === 'first-person' ? 0.4 : 0.15));
+    // Use a tighter lerp for a more rigid standard racing camera setup
+    state.camera.position.lerp(cameraTarget, gameState === 'MENU' ? 0.05 : (viewMode === 'first-person' ? 1.0 : 0.7));
     state.camera.lookAt(lookTarget);
     audioSystem.updateListener(state.camera.position, lookTarget.clone().sub(state.camera.position).normalize(), state.camera.up);
     

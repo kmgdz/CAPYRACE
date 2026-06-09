@@ -3,11 +3,18 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import fs from "fs";
 import { kv } from "@vercel/kv";
+import { createClient } from "redis";
 
 const app = express();
 const PORT = 3000;
 const LEADERBOARD_FILE = path.join(process.cwd(), "leaderboard.json");
 const LEADERBOARD_KEY = "game_leaderboard";
+
+let redisClient: ReturnType<typeof createClient> | null = null;
+if (process.env.REDIS_URL) {
+  redisClient = createClient({ url: process.env.REDIS_URL });
+  redisClient.connect().catch(console.error);
+}
 
 app.use(express.json());
 
@@ -19,7 +26,10 @@ if (!fs.existsSync(LEADERBOARD_FILE)) {
 app.get("/api/leaderboard", async (req, res) => {
   try {
     let data;
-    if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    if (redisClient && redisClient.isReady) {
+      const raw = await redisClient.get(LEADERBOARD_KEY);
+      data = raw ? JSON.parse(raw) : [];
+    } else if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
       data = (await kv.get(LEADERBOARD_KEY)) || [];
     } else {
       data = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8"));
@@ -41,8 +51,12 @@ app.post("/api/leaderboard", async (req, res) => {
     
     let data;
     const isKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+    const isRedis = redisClient && redisClient.isReady;
     
-    if (isKV) {
+    if (isRedis) {
+      const raw = await redisClient!.get(LEADERBOARD_KEY);
+      data = raw ? JSON.parse(raw) : [];
+    } else if (isKV) {
       data = (await kv.get(LEADERBOARD_KEY)) || [];
     } else {
       data = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, "utf-8"));
@@ -57,7 +71,9 @@ app.post("/api/leaderboard", async (req, res) => {
     
     const sorted = data.sort((a: any, b: any) => a.time - b.time).slice(0, 100); // keep top 100
     
-    if (isKV) {
+    if (isRedis) {
+      await redisClient!.set(LEADERBOARD_KEY, JSON.stringify(sorted));
+    } else if (isKV) {
       await kv.set(LEADERBOARD_KEY, sorted);
     } else {
       fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(sorted, null, 2));

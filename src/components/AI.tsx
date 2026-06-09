@@ -5,10 +5,14 @@ import { mapData } from '../lib/mapData';
 import * as THREE from 'three';
 import { audioSystem } from '../audio';
 import { Trail } from '@react-three/drei';
-import { useStore } from '../store';
+import { useStore, gameRacers } from '../store';
 
 import { KartType } from '../store';
 import { KartVisuals } from './KartVisuals';
+
+const v_up = new THREE.Vector3(0, 1, 0);
+const v_right = new THREE.Vector3();
+const v_finalPos = new THREE.Vector3();
 
 export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -37,11 +41,11 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
       const point = trackCurve.getPointAt(startT);
       audioSystem.updateEngine(`ai_${index}`, 0, point);
       const tangent = trackCurve.getTangentAt(startT).normalize();
-      const right = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();
+      v_right.crossVectors(tangent, v_up).normalize();
       
       // Index 0: Left, Index 1: Right, Index 2: Left, etc.
       const lateralOffset = (index % 2 === 0 ? 1 : -1) * 3; 
-      const finalPos = point.clone().addScaledVector(right, lateralOffset);
+      const finalPos = point.clone().addScaledVector(v_right, lateralOffset);
       const angle = Math.atan2(tangent.x, tangent.z);
       
       groupRef.current.position.set(finalPos.x, 1.5, finalPos.z);
@@ -50,7 +54,13 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
       return;
     }
 
-    if (gameState !== 'PLAYING') return;
+    if (gameState !== 'PLAYING' && gameState !== 'FINISHED') return;
+    
+    // Stop if AI finished all laps
+    if (lapRef.current > useStore.getState().maxLaps) {
+       audioSystem.updateEngine(`ai_${index}`, 0, groupRef.current.position);
+       return; 
+    }
     
     let currentSpeed = baseSpeed * speedOffset * (1 + Math.sin(Date.now() * 0.001 + offset * 10) * 0.15);
     
@@ -104,28 +114,26 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
     const point = trackCurve.getPointAt(progressRef.current);
     const tangent = trackCurve.getTangentAt(progressRef.current).normalize();
     
-    const up = new THREE.Vector3(0, 1, 0);
-    const right = new THREE.Vector3().crossVectors(tangent, up).normalize();
+    v_right.crossVectors(tangent, v_up).normalize();
     const lateralOffset = (index % 2 === 0 ? 1 : -1) * 4 + Math.sin(Date.now() * 0.002 + offset * 5) * 2;
     
-    const finalPos = point.clone().addScaledVector(right, lateralOffset);
+    const finalPos = point.clone().addScaledVector(v_right, lateralOffset);
     
     // Set position and rotation
     const angle = Math.atan2(tangent.x, tangent.z);
     
-    groupRef.current.position.lerp(new THREE.Vector3(finalPos.x, 1.5, finalPos.z), 0.5);
+    v_finalPos.set(finalPos.x, 1.5, finalPos.z);
+    groupRef.current.position.lerp(v_finalPos, 0.5);
     
     // basic slerp for rotation or direct set
     groupRef.current.rotation.set(0, angle, 0);
     
     audioSystem.updateEngine(`ai_${index}`, speedOffset, groupRef.current.position);
 
-    useStore.getState().updateRacer(`ai-${index}`, {
-        x: finalPos.x,
-        z: finalPos.z,
+    gameRacers[`ai-${index}`] = {
         progress: lapRef.current + progressRef.current,
         isPlayer: false
-    });
+    };
 
     // Update map data safely
     if (mapData.aiTargetsX.length <= index) {
