@@ -28,7 +28,7 @@ app.get("/api/leaderboard", async (req, res) => {
     let data;
     if (redisClient && redisClient.isReady) {
       const raw = await redisClient.get(LEADERBOARD_KEY);
-      data = raw ? JSON.parse(raw) : [];
+      data = raw ? JSON.parse(raw as string) : [];
     } else if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
       data = (await kv.get(LEADERBOARD_KEY)) || [];
     } else {
@@ -55,7 +55,7 @@ app.post("/api/leaderboard", async (req, res) => {
     
     if (isRedis) {
       const raw = await redisClient!.get(LEADERBOARD_KEY);
-      data = raw ? JSON.parse(raw) : [];
+      data = raw ? JSON.parse(raw as string) : [];
     } else if (isKV) {
       data = (await kv.get(LEADERBOARD_KEY)) || [];
     } else {

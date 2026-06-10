@@ -32,7 +32,8 @@ function WeatherParticles() {
     const speedMult = weather === 'rain' ? 80 : 15; // Rain is fast, snow is slow
 
     for (let i = 0; i < count; i++) {
-        let { x, y, z } = particlesData[i];
+        const particle = particlesData[i];
+        let { x, y, z } = particle;
         
         // update Y pos
         y -= velocities[i] * speedMult * delta;
@@ -45,7 +46,9 @@ function WeatherParticles() {
         // Slight wind
         x += (weather === 'snow' ? Math.sin(state.clock.elapsedTime + i) * 2 : 1) * delta;
         
-        particlesData[i] = { x, y, z };
+        particle.x = x;
+        particle.y = y;
+        particle.z = z;
         
         dummy.position.set(x, y, z);
         if (weather === 'rain') {

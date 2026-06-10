@@ -6,7 +6,7 @@ export type GameState = 'MENU' | 'COUNTDOWN' | 'PLAYING' | 'PAUSED' | 'FINISHED'
 export type KartType = 'classic' | 'f1' | 'cyber';
 export type TrackType = 'neon_city' | 'desert' | 'space' | 'jungle' | 'icy_mountain';
 export type WeatherType = 'clear' | 'rain' | 'snow';
-export type PowerupType = 'hyper-speed' | 'shield' | null;
+export type PowerupType = 'hyper-speed' | 'shield' | 'missile' | null;
 export type CameraView = 'third-person' | 'first-person';
 
 interface RacerData {
@@ -40,6 +40,7 @@ interface StoreState {
   activeNitros: Record<string, boolean>;
   leaderboardData: Array<{ id: number, name: string, time: number, date: string }>;
   replayData: any[];
+  projectiles: Array<{ id: number, x: number, z: number, dirX: number, dirZ: number }>;
   setGameState: (state: GameState) => void;
   setVolume: (v: number) => void;
   setCameraView: (v: CameraView) => void;
@@ -59,6 +60,9 @@ interface StoreState {
   updateRacer: (id: string, data: Partial<RacerData>) => void;
   setItemBoxActive: (id: string, active: boolean) => void;
   setNitroActive: (id: string, active: boolean) => void;
+  addProjectile: (x: number, z: number, dirX: number, dirZ: number) => void;
+  removeProjectile: (id: number) => void;
+  updateProjectiles: (delta: number) => void;
   setReplayData: (data: any[]) => void;
   fetchLeaderboard: () => Promise<void>;
   submitLeaderboard: (name: string, time: number) => Promise<void>;
@@ -88,6 +92,7 @@ export const useStore = create<StoreState>((set) => ({
   activeNitros: {},
   leaderboardData: [],
   replayData: [],
+  projectiles: [],
   setGameState: (state) => set({ gameState: state }),
   setVolume: (volume) => set({ volume }),
   setCameraView: (cameraView) => set({ cameraView }),
@@ -109,6 +114,22 @@ export const useStore = create<StoreState>((set) => ({
   })),
   setItemBoxActive: (id, active) => set((state) => ({ activeBoxes: { ...state.activeBoxes, [id]: active } })),
   setNitroActive: (id, active) => set((state) => ({ activeNitros: { ...state.activeNitros, [id]: active } })),
+  addProjectile: (x, z, dirX, dirZ) => set((state) => ({
+      projectiles: [...state.projectiles, { id: Date.now() + Math.random(), x, z, dirX, dirZ }]
+  })),
+  removeProjectile: (id) => set((state) => ({
+      projectiles: state.projectiles.filter(p => p.id !== id)
+  })),
+  updateProjectiles: (delta) => set((state) => {
+      const speed = 100 * delta;
+      return {
+          projectiles: state.projectiles.map(p => ({
+              ...p,
+              x: p.x + p.dirX * speed,
+              z: p.z + p.dirZ * speed
+          }))
+      };
+  }),
   setReplayData: (data) => set({ replayData: data }),
   fetchLeaderboard: async () => {
     try {

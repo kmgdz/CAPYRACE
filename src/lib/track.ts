@@ -160,17 +160,22 @@ export function getClosestPointOnPath(pathPoints: THREE.Vector3[], position: THR
 export function getTrackProgress(pathPoints: THREE.Vector3[], position: THREE.Vector3, currentProgressIndex: number) {
   const SEARCH_RAD = 30;
   let nextIndex = currentProgressIndex;
-  let minDist = Infinity;
+  let minDistSq = Infinity;
+
+  const pos2x = position.x;
+  const pos2z = position.z;
 
   for (let i = -SEARCH_RAD; i <= SEARCH_RAD; i++) {
     let checkIndex = (currentProgressIndex + i) % pathPoints.length;
     if (checkIndex < 0) checkIndex += pathPoints.length;
 
     const pt = pathPoints[checkIndex];
-    const dist = Math.sqrt(Math.pow(position.x - pt.x, 2) + Math.pow(position.z - pt.z, 2));
+    const dx = pos2x - pt.x;
+    const dz = pos2z - pt.z;
+    const distSq = dx*dx + dz*dz;
 
-    if (dist < minDist) {
-      minDist = dist;
+    if (distSq < minDistSq) {
+      minDistSq = distSq;
       nextIndex = checkIndex;
     }
   }

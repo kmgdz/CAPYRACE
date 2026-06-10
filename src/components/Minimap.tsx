@@ -119,6 +119,19 @@ export function Minimap() {
       ctx.strokeStyle = "#FFF";
       ctx.stroke();
 
+      // Draw Projectiles
+      const projectiles = useStore.getState().projectiles;
+      for (let i = 0; i < projectiles.length; i++) {
+         const p = projectiles[i];
+         ctx.beginPath();
+         ctx.arc(toScreenX(p.x), toScreenY(p.z), 4 * (canvas.width / 300), 0, Math.PI * 2);
+         ctx.fillStyle = "#00FFFF";
+         ctx.fill();
+         ctx.lineWidth = 1;
+         ctx.strokeStyle = "#FFF";
+         ctx.stroke();
+      }
+
       frameId = requestAnimationFrame(render);
     };
     

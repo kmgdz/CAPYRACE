@@ -55,6 +55,7 @@ export default function App() {
         { name: 'right', keys: ['ArrowRight', 'KeyD'] },
         { name: 'drift', keys: ['Space'] },
         { name: 'useNitro', keys: ['ShiftLeft', 'ShiftRight'] },
+        { name: 'shoot', keys: ['Enter', 'KeyE', 'KeyF'] },
       ]}
     >
       <div className="w-full h-screen bg-black overflow-hidden relative font-sans">

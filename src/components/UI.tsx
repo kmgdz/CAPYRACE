@@ -21,7 +21,8 @@ const formatTime = (t: number) => {
 };
 
 function Leaderboard() {
-  const { leaderboardData, fetchLeaderboard } = useStore();
+  const leaderboardData = useStore(state => state.leaderboardData);
+  const fetchLeaderboard = useStore(state => state.fetchLeaderboard);
   
   useEffect(() => {
     fetchLeaderboard();
@@ -83,11 +84,15 @@ function PlayingHUD() {
       }
 
       if (nitroRef.current) {
+        const isPulse = state.nitro > 95;
         nitroRef.current.style.width = `${Math.min(100, Math.max(0, state.nitro))}%`;
-        if (state.nitro > 95) {
-          nitroRef.current.className = `h-full transition-all duration-75 bg-white shadow-[0_0_10px_rgba(255,255,255,1)] animate-pulse`;
-        } else {
-          nitroRef.current.className = `h-full transition-all duration-75 bg-gradient-to-r from-orange-500 to-yellow-400`;
+        const hasPulseClass = nitroRef.current.classList.contains('bg-white');
+        if (isPulse !== hasPulseClass) {
+          if (isPulse) {
+            nitroRef.current.className = `h-full transition-all duration-75 bg-white shadow-[0_0_10px_rgba(255,255,255,1)] animate-pulse`;
+          } else {
+            nitroRef.current.className = `h-full transition-all duration-75 bg-gradient-to-r from-orange-500 to-yellow-400`;
+          }
         }
       }
 
@@ -124,12 +129,24 @@ function PlayingHUD() {
                      initial={{ scale: 0, y: -50 }} 
                      animate={{ scale: 1, y: 0 }} 
                      exit={{ scale: 0, opacity: 0 }}
-                     className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center border-4 ${activePowerup === 'hyper-speed' ? 'border-orange-500 bg-orange-500/20 shadow-[0_0_30px_rgba(255,100,0,0.8)]' : 'border-cyan-400 bg-cyan-400/20 shadow-[0_0_30px_rgba(0,255,255,0.8)]'} backdrop-blur-md`}
+                     className={`w-32 h-32 rounded-2xl flex flex-col items-center justify-center border-4 ${
+                        activePowerup === 'hyper-speed' ? 'border-orange-500 bg-orange-500/20 shadow-[0_0_30px_rgba(255,100,0,0.8)]' : 
+                        activePowerup === 'missile' ? 'border-red-500 bg-red-500/20 shadow-[0_0_30px_rgba(255,0,0,0.8)]' :
+                        'border-cyan-400 bg-cyan-400/20 shadow-[0_0_30px_rgba(0,255,255,0.8)]'
+                     } backdrop-blur-md`}
                    >
-                      <span className="text-4xl mb-1">{activePowerup === 'hyper-speed' ? '⚡' : '🛡️'}</span>
-                      <span className={`text-[10px] font-black tracking-widest ${activePowerup === 'hyper-speed' ? 'text-orange-400' : 'text-cyan-400'}`}>
-                         {activePowerup === 'hyper-speed' ? 'BOOST' : 'SHIELD'}
+                      <span className="text-5xl mb-2">{
+                         activePowerup === 'hyper-speed' ? '⚡' : 
+                         activePowerup === 'missile' ? '☄️' : '🛡️'
+                      }</span>
+                      <span className={`text-xs font-black tracking-widest ${
+                         activePowerup === 'hyper-speed' ? 'text-orange-400' : 
+                         activePowerup === 'missile' ? 'text-red-400' : 'text-cyan-400'
+                      }`}>
+                         {activePowerup === 'hyper-speed' ? 'BOOST' : 
+                          activePowerup === 'missile' ? 'PLASMA' : 'SHIELD'}
                       </span>
+                      {activePowerup === 'missile' && <span className="text-[9px] mt-1 text-red-300 font-bold tracking-tighter">PRESS ENTER TO FIRE</span>}
                    </motion.div>
                )}
            </AnimatePresence>

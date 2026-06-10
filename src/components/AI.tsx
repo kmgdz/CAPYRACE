@@ -13,6 +13,9 @@ import { KartVisuals } from './KartVisuals';
 const v_up = new THREE.Vector3(0, 1, 0);
 const v_right = new THREE.Vector3();
 const v_finalPos = new THREE.Vector3();
+const v_point = new THREE.Vector3();
+const v_tangent = new THREE.Vector3();
+const v_targetPos = new THREE.Vector3();
 
 export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -21,7 +24,7 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
   const progressRef = useRef(0); // start at exactly the start line
   const spinOutTimerRef = useRef(0);
   const lapRef = useRef(1);
-  const { gameState } = useStore();
+  const gameState = useStore(state => state.gameState);
   
   const baseSpeed = 0.04; // Percentage of track per second
 
@@ -38,14 +41,14 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
       lapRef.current = 1;
       // Just set them on their initial positions
       const startT = (1 + initialOffsetDist) % 1;
-      const point = trackCurve.getPointAt(startT);
+      const point = trackCurve.getPointAt(startT, v_point);
       audioSystem.updateEngine(`ai_${index}`, 0, point);
-      const tangent = trackCurve.getTangentAt(startT).normalize();
+      const tangent = trackCurve.getTangentAt(startT, v_tangent).normalize();
       v_right.crossVectors(tangent, v_up).normalize();
       
       // Index 0: Left, Index 1: Right, Index 2: Left, etc.
       const lateralOffset = (index % 2 === 0 ? 1 : -1) * 3; 
-      const finalPos = point.clone().addScaledVector(v_right, lateralOffset);
+      const finalPos = v_targetPos.copy(point).addScaledVector(v_right, lateralOffset);
       const angle = Math.atan2(tangent.x, tangent.z);
       
       groupRef.current.position.set(finalPos.x, 1.5, finalPos.z);
@@ -97,11 +100,30 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
             const dx = posX - p2x;
             const dz = posZ - p2z;
             if (dx*dx + dz*dz < hazard.radiusSq + 4) {
-                spinOutTimerRef.current = 1.0;
+                if (spinOutTimerRef.current <= 0) {
+                    spinOutTimerRef.current = 1.0;
+                    audioSystem.playCrash(groupRef.current.position);
+                }
                 currentSpeed = 0;
                 isSpinning = true;
-                if (spinOutTimerRef.current === 1.0) audioSystem.playCrash(groupRef.current.position);
             }
+        }
+        
+        // Projectile hit
+        const projectiles = useStore.getState().projectiles;
+        for (let i = 0; i < projectiles.length; i++) {
+             const proj = projectiles[i];
+             const dx = proj.x - p2x;
+             const dz = proj.z - p2z;
+             if (dx*dx + dz*dz < 25) { // 5 radius area
+                 if (spinOutTimerRef.current <= 0) {
+                     spinOutTimerRef.current = 1.5;
+                     audioSystem.playCrash(groupRef.current.position);
+                     useStore.getState().removeProjectile(proj.id);
+                 }
+                 currentSpeed = 0;
+                 isSpinning = true;
+             }
         }
     }
     
@@ -111,13 +133,13 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
       lapRef.current += 1;
     }
     
-    const point = trackCurve.getPointAt(progressRef.current);
-    const tangent = trackCurve.getTangentAt(progressRef.current).normalize();
+    const point = trackCurve.getPointAt(progressRef.current, v_point);
+    const tangent = trackCurve.getTangentAt(progressRef.current, v_tangent).normalize();
     
     v_right.crossVectors(tangent, v_up).normalize();
     const lateralOffset = (index % 2 === 0 ? 1 : -1) * 4 + Math.sin(Date.now() * 0.002 + offset * 5) * 2;
     
-    const finalPos = point.clone().addScaledVector(v_right, lateralOffset);
+    const finalPos = v_targetPos.copy(point).addScaledVector(v_right, lateralOffset);
     
     // Set position and rotation
     const angle = Math.atan2(tangent.x, tangent.z);

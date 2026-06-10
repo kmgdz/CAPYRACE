@@ -137,9 +137,14 @@ class AudioSystem {
     return engineData;
   }
 
+  private isResuming = false;
+
   updateEngine(id: string, speedRatio: number, position?: THREE.Vector3) {
     if (!this.ctx) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended' && !this.isResuming) {
+       this.isResuming = true;
+       this.ctx.resume().finally(() => { this.isResuming = false; });
+    }
     
     let engine = this.engines.get(id);
     if (!engine) {
@@ -175,7 +180,10 @@ class AudioSystem {
 
   playCrash(position?: THREE.Vector3) {
     if (!this.ctx || !this.sfxGain) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended' && !this.isResuming) {
+       this.isResuming = true;
+       this.ctx.resume().finally(() => { this.isResuming = false; });
+    }
 
     const panner = this.ctx.createPanner();
     panner.panningModel = 'HRTF';
@@ -218,7 +226,10 @@ class AudioSystem {
 
   playBoost() {
     if (!this.ctx || !this.sfxGain) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended' && !this.isResuming) {
+       this.isResuming = true;
+       this.ctx.resume().finally(() => { this.isResuming = false; });
+    }
 
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
@@ -245,7 +256,10 @@ class AudioSystem {
 
   playMusic(trackType: string) {
     if (!this.ctx || !this.musicGain) return;
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended' && !this.isResuming) {
+       this.isResuming = true;
+       this.ctx.resume().finally(() => { this.isResuming = false; });
+    }
 
     this.stopMusic();
     this.currentTrackType = trackType;

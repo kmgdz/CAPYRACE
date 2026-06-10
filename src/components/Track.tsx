@@ -14,22 +14,34 @@ function ItemBoxes() {
   const { itemBoxesData } = TRACKS[trackType];
   const activeBoxes = useStore(state => state.activeBoxes);
   
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const groupRefs = useRef<(THREE.Group | null)[]>([]);
   
   useFrame((state) => {
-    if (meshRef.current) {
-        meshRef.current.rotation.y += 0.02;
-        meshRef.current.position.y = Math.sin(state.clock.elapsedTime * 3) * 0.5;
-    }
+    const elapsed = state.clock.elapsedTime;
+    const dy = Math.sin(elapsed * 3) * 0.5;
+    
+    groupRefs.current.forEach(ref => {
+       if (ref) {
+           ref.rotation.y += 0.02;
+           ref.position.y = ref.userData.baseY + dy;
+       }
+    });
   });
 
   return (
-    <group ref={meshRef}>
+    <group>
         {itemBoxesData.map((box, i) => {
             const isActive = activeBoxes[box.id] !== false;
             if (!isActive) return null;
             return (
-                <group key={box.id} position={box.position}>
+                <group 
+                   key={box.id} 
+                   position={box.position} 
+                   ref={(el) => { 
+                       if (el) el.userData.baseY = box.position.y;
+                       groupRefs.current[i] = el; 
+                   }}
+                >
                     <mesh castShadow>
                         <boxGeometry args={[4, 4, 4]} />
                         <meshStandardMaterial color="#FF00FF" emissive="#FF00FF" emissiveIntensity={0.5} transparent opacity={0.6} wireframe />
@@ -50,22 +62,34 @@ function NitroPickups() {
   const { nitroPickupsData } = TRACKS[trackType];
   const activeNitros = useStore(state => state.activeNitros);
   
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const groupRefs = useRef<(THREE.Group | null)[]>([]);
   
   useFrame((state) => {
-    if (meshRef.current) {
-        meshRef.current.rotation.y += 0.05;
-        meshRef.current.position.y = Math.sin(state.clock.elapsedTime * 5) * 0.5 + 0.5;
-    }
+    const elapsed = state.clock.elapsedTime;
+    const dy = Math.sin(elapsed * 5) * 0.5 + 0.5;
+    
+    groupRefs.current.forEach(ref => {
+       if (ref) {
+           ref.rotation.y += 0.05;
+           ref.position.y = ref.userData.baseY + dy;
+       }
+    });
   });
 
   return (
-    <group ref={meshRef}>
+    <group>
         {nitroPickupsData.map((nitro, i) => {
             const isActive = activeNitros[nitro.id] !== false;
             if (!isActive) return null;
             return (
-                <group key={nitro.id} position={nitro.position}>
+                <group 
+                    key={nitro.id} 
+                    position={nitro.position}
+                    ref={(el) => {
+                       if (el) el.userData.baseY = nitro.position.y;
+                       groupRefs.current[i] = el;
+                    }}
+                >
                     {/* Inner core */}
                     <mesh castShadow>
                         <octahedronGeometry args={[1.5, 0]} />
@@ -87,6 +111,7 @@ function MovingHazards() {
   const trackType = useStore(state => state.trackType);
   const { movingHazardsData } = TRACKS[trackType];
   const meshRefs = useRef<(THREE.Mesh | null)[]>([]);
+  const v_hazardPos = useMemo(() => new THREE.Vector3(), []);
 
   useFrame(({ clock }) => {
     const elapsed = clock.elapsedTime;
@@ -95,7 +120,7 @@ function MovingHazards() {
       if (mesh) {
         // Deterministic sidewise movement
         const offset = Math.sin(elapsed * hazard.speed * 0.1) * hazard.offsetRange;
-        const pos = hazard.basePos.clone().addScaledVector(hazard.right, offset);
+        const pos = v_hazardPos.copy(hazard.basePos).addScaledVector(hazard.right, offset);
         mesh.position.copy(pos);
         mesh.position.y += hazard.radius;
         // Roll the rock! It moves along 'right' vector so we rotate around tangent

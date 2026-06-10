@@ -16,6 +16,14 @@ const v_scaleNorm = new THREE.Vector3(1, 1, 1);
 const v_camOffset = new THREE.Vector3();
 const v_lookOffset = new THREE.Vector3();
 const v_pushDir = new THREE.Vector3();
+const v_newPos = new THREE.Vector3();
+const v_cameraTarget = new THREE.Vector3();
+const v_lookTarget = new THREE.Vector3();
+const v_camTargetReplay = new THREE.Vector3();
+const v_lookTargetReplay = new THREE.Vector3();
+const v_reusableVec1 = new THREE.Vector3();
+const v_reusableVec2 = new THREE.Vector3();
+const v_tempEuler = new THREE.Euler();
 
 export function Player() {
   const groupRef = useRef<THREE.Group>(null);
@@ -39,6 +47,9 @@ export function Player() {
   const velocityRef = useRef(0);
   const boostRef = useRef(0);
   const driftRef = useRef(0); // tracks drift amount
+  const hopVelocityRef = useRef(0);
+  const hopHeightRef = useRef(0);
+  const draftTimerRef = useRef(0);
   const lastCrashTimeRef = useRef(0);
   
   const progressIndexRef = useRef(0);
@@ -46,6 +57,7 @@ export function Player() {
   const sparksRef = useRef(null as any);
   const hitWallTimerRef = useRef(0);
   const spinOutTimerRef = useRef(0);
+  const wasShootPressedRef = useRef(false);
   
   const replayFramesRef = useRef<any[]>([]);
   const replayIndexRef = useRef(0);
@@ -107,10 +119,10 @@ export function Player() {
        }
        
        const frame = replayData[idx];
-       groupRef.current.position.copy(frame.p);
-       groupRef.current.rotation.copy(frame.r);
-       meshRef.current.rotation.copy(frame.mr);
-       meshRef.current.scale.copy(frame.scale);
+       groupRef.current.position.set(frame.p.x, frame.p.y, frame.p.z);
+       groupRef.current.rotation.set(frame.r.x, frame.r.y, frame.r.z, frame.r.order);
+       meshRef.current.rotation.set(frame.mr.x, frame.mr.y, frame.mr.z, frame.mr.order);
+       meshRef.current.scale.set(frame.scale.x, frame.scale.y, frame.scale.z);
        if (capyRef.current) capyRef.current.position.y = frame.capyOffsetY;
        if (sparksRef.current) sparksRef.current.visible = frame.sparks;
        
@@ -121,30 +133,37 @@ export function Player() {
           replayCameraModeRef.current = Math.floor(Math.random() * 4);
        }
        
-       let camTarget = frame.p.clone();
-       let lookTarget = frame.p.clone();
+       v_camTargetReplay.set(frame.p.x, frame.p.y, frame.p.z);
+       v_lookTargetReplay.set(frame.p.x, frame.p.y, frame.p.z);
        
+       let camTarget = v_camTargetReplay;
+       let lookTarget = v_lookTargetReplay;
+       
+       // Note: frame.r is not an Euler instance, so applyEuler(frame.r) would crash.
+       // We'll reconstruct a temporary Euler to apply.
+       v_tempEuler.set(frame.r.x, frame.r.y, frame.r.z, frame.r.order);
+
        switch(replayCameraModeRef.current) {
           case 0: // Cinematic follow close
-             camTarget.add(new THREE.Vector3(0, 3, -8).applyEuler(frame.r));
-             lookTarget.add(new THREE.Vector3(0, 1, 10).applyEuler(frame.r));
+             camTarget.add(v_reusableVec1.set(0, 3, -8).applyEuler(v_tempEuler));
+             lookTarget.add(v_reusableVec2.set(0, 1, 10).applyEuler(v_tempEuler));
              break;
           case 1: // Cinematic follow far
-             camTarget.add(new THREE.Vector3(10, 8, -15).applyEuler(frame.r));
-             lookTarget.add(new THREE.Vector3(0, 1, 0));
+             camTarget.add(v_reusableVec1.set(10, 8, -15).applyEuler(v_tempEuler));
+             lookTarget.add(v_reusableVec2.set(0, 1, 0));
              break;
           case 2: // Low angle dramatic
-             camTarget.add(new THREE.Vector3(-4, 0.5, 6).applyEuler(frame.r));
-             lookTarget.add(new THREE.Vector3(0, 1, 0));
+             camTarget.add(v_reusableVec1.set(-4, 0.5, 6).applyEuler(v_tempEuler));
+             lookTarget.add(v_reusableVec2.set(0, 1, 0));
              break;
           case 3: // Top down sweep
-             camTarget.add(new THREE.Vector3(0, 20, 0));
+             camTarget.add(v_reusableVec1.set(0, 20, 0));
              break;
        }
        
        state.camera.position.lerp(camTarget, 0.1);
        state.camera.lookAt(lookTarget);
-       audioSystem.updateListener(state.camera.position, lookTarget.clone().sub(state.camera.position).normalize(), state.camera.up);
+       audioSystem.updateListener(state.camera.position, v_reusableVec1.copy(lookTarget).sub(state.camera.position).normalize(), state.camera.up);
        
        audioSystem.updateEngine('player', frame.boost ? 1.0 : (frame.drift ? 0.6 : 0.4), groupRef.current.position);
        
@@ -211,6 +230,10 @@ export function Player() {
           
           // Drift mechanics
           if (keys.drift && currentVel > 20) {
+            if (driftRef.current === 0) {
+                // Initiate drift hop
+                hopVelocityRef.current = 10;
+            }
             driftRef.current += delta;
             currentVel *= 0.99; // drift friction
             
@@ -228,6 +251,40 @@ export function Player() {
                 audioSystem.playBoost();
             }
             driftRef.current = 0;
+          }
+
+          // Drafting mechanics (Slipstream)
+          let drafting = false;
+          const p1x = groupRef.current.position.x;
+          const p1z = groupRef.current.position.z;
+          for (let i = 0; i < mapData.aiTargetsX.length; i++) {
+              const ax = mapData.aiTargetsX[i];
+              const az = mapData.aiTargetsZ[i];
+              const dx = ax - p1x;
+              const dz = az - p1z;
+              const distSq = dx*dx + dz*dz;
+              // If within drafting range 
+              if (distSq < 150 && distSq > 10) {
+                  v_direction.set(dx, 0, dz).normalize();
+                  const forward = v_reusableVec1.set(0, 0, 1).applyEuler(groupRef.current.rotation).normalize();
+                  if (forward.dot(v_direction) > 0.92) { 
+                      drafting = true;
+                      break;
+                  }
+              }
+          }
+          
+          if (drafting && currentVel > 30) {
+              draftTimerRef.current += delta;
+              hitWallTimerRef.current = 0.1; // reuse spark visual for drafting
+              if (draftTimerRef.current > 1.5) {
+                  audioSystem.playBoost();
+                  boostRef.current = Math.max(boostRef.current, 2.0);
+                  currentVel += 30; // SLIPSTREAM BOOST
+                  draftTimerRef.current = 0;
+              }
+          } else {
+              draftTimerRef.current = 0;
           }
       }
       
@@ -262,7 +319,19 @@ export function Player() {
     // If drifting, slightly slide sideways instead of going directly forward.
     // For simplicity, we just use standard forward direction but with visual lean.
     v_direction.set(0, 0, 1).applyEuler(groupRef.current.rotation);
-    const newPos = groupRef.current.position.clone().addScaledVector(v_direction, currentVel * delta);
+    const newPos = v_newPos.copy(groupRef.current.position).addScaledVector(v_direction, currentVel * delta);
+
+    // Process shooting
+    const currentPowerup = useStore.getState().activePowerup;
+    if (keys.shoot && !wasShootPressedRef.current && currentPowerup === 'missile') {
+        useStore.getState().setActivePowerup(null);
+        // spawn projectile slightly ahead
+        const projX = newPos.x + v_direction.x * 5;
+        const projZ = newPos.z + v_direction.z * 5;
+        useStore.getState().addProjectile(projX, projZ, v_direction.x, v_direction.z);
+        audioSystem.playBoost(); // re-use sound for fire
+    }
+    wasShootPressedRef.current = !!keys.shoot;
 
     // Boost Pad Collision
     if (gameState === 'PLAYING') {
@@ -301,19 +370,22 @@ export function Player() {
               }, 5000); // Respawn after 5 seconds
               
               // Randomly assign powerup
-              const isHyper = Math.random() > 0.5;
-              if (isHyper) {
+              const rand = Math.random();
+              if (rand < 0.33) {
                   storeState.setActivePowerup('hyper-speed');
                   boostRef.current = 4.0;
                   audioSystem.playBoost();
                   setTimeout(() => useStore.getState().setActivePowerup(null), 4000);
-              } else {
+              } else if (rand < 0.66) {
                   storeState.setActivePowerup('shield');
                   storeState.setShielded(true);
                   setTimeout(() => {
                      useStore.getState().setActivePowerup(null);
                      useStore.getState().setShielded(false);
                   }, 6000);
+              } else {
+                  storeState.setActivePowerup('missile');
+                  // We hold the missile until we press shoot!
               }
           }
       }
@@ -468,7 +540,7 @@ export function Player() {
 
     // Track Progress & Anti-Cheat Lap Timer
     if (gameState === 'PLAYING') {
-      const curPos = newPos.clone();
+      const curPos = newPos;
       const newIdx = getTrackProgress(pathPoints, curPos, progressIndexRef.current);
       
       const halfTrack = pathPoints.length / 2;
@@ -499,6 +571,17 @@ export function Player() {
     
     meshRef.current.rotation.z = THREE.MathUtils.lerp(meshRef.current.rotation.z, leanTarget, 0.1);
 
+    // Hop physics
+    if (hopVelocityRef.current !== 0 || hopHeightRef.current > 0) {
+        hopVelocityRef.current -= 35 * delta; // gravity
+        hopHeightRef.current += hopVelocityRef.current * delta;
+        if (hopHeightRef.current <= 0) {
+             hopHeightRef.current = 0;
+             hopVelocityRef.current = 0;
+        }
+    }
+    meshRef.current.position.y = hopHeightRef.current;
+
     // Boost scale effect
     if (boostRef.current > 0 || useStore.getState().nitro > 95) {
         meshRef.current.scale.lerp(v_scaleBoost, 0.2);
@@ -512,11 +595,11 @@ export function Player() {
 
     if (gameState === 'PLAYING') {
        replayFramesRef.current.push({
-          p: newPos.clone(),
-          r: groupRef.current.rotation.clone(),
-          mr: meshRef.current.rotation.clone(),
+          p: { x: newPos.x, y: newPos.y, z: newPos.z },
+          r: { x: groupRef.current.rotation.x, y: groupRef.current.rotation.y, z: groupRef.current.rotation.z, order: groupRef.current.rotation.order },
+          mr: { x: meshRef.current.rotation.x, y: meshRef.current.rotation.y, z: meshRef.current.rotation.z, order: meshRef.current.rotation.order },
           capyOffsetY: capyRef.current ? capyRef.current.position.y : 0,
-          scale: meshRef.current.scale.clone(),
+          scale: { x: meshRef.current.scale.x, y: meshRef.current.scale.y, z: meshRef.current.scale.z },
           sparks: sparksRef.current ? sparksRef.current.visible : false,
           drift: keys.drift,
           boost: boostRef.current > 0
@@ -563,9 +646,9 @@ export function Player() {
     }
     
     v_camOffset.set(cameraShakeX, offsetY + cameraShakeY, offsetZ).applyEuler(groupRef.current.rotation);
-    let cameraTarget = newPos.clone().add(v_camOffset);
+    let cameraTarget = v_cameraTarget.copy(newPos).add(v_camOffset);
     v_lookOffset.set(0, offsetY - 1.5, 0).applyEuler(groupRef.current.rotation).add(v_direction.multiplyScalar(30));
-    let lookTarget = newPos.clone().add(v_lookOffset);
+    let lookTarget = v_lookTarget.copy(newPos).add(v_lookOffset);
     
     if (gameState === 'MENU') {
         const time = Date.now() * 0.0005;
@@ -574,7 +657,7 @@ export function Player() {
         cameraTarget.z = newPos.z + Math.cos(time) * radius;
         cameraTarget.y = newPos.y + 5;
         v_lookOffset.set(0, 2, 0);
-        lookTarget = newPos.clone().add(v_lookOffset);
+        lookTarget = v_lookTarget.copy(newPos).add(v_lookOffset);
     } else {
         // Clamp camera to track bounds so it doesn't clip through walls
         const camClosest = getClosestPointOnPath(pathPoints, cameraTarget, progressIndexRef.current, 40);
@@ -598,7 +681,7 @@ export function Player() {
         state.camera.position.lerp(cameraTarget, viewMode === 'first-person' ? 1.0 : 0.95);
     }
     state.camera.lookAt(lookTarget);
-    audioSystem.updateListener(state.camera.position, lookTarget.clone().sub(state.camera.position).normalize(), state.camera.up);
+    audioSystem.updateListener(state.camera.position, v_reusableVec1.copy(lookTarget).sub(state.camera.position).normalize(), state.camera.up);
     
     // Update engine audio based on speed
     if (gameState === 'PLAYING') {

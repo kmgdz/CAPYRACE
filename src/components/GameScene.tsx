@@ -8,6 +8,28 @@ import { EffectComposer, Bloom, Vignette, ToneMapping, ChromaticAberration } fro
 import { useRef } from 'react';
 import * as THREE from 'three';
 
+function ProjectilesRenderer() {
+    const projectiles = useStore(state => state.projectiles);
+    
+    useFrame((_, delta) => {
+        if (useStore.getState().projectiles.length > 0) {
+            useStore.getState().updateProjectiles(delta);
+        }
+    });
+
+    return (
+        <group>
+           {projectiles.map(p => (
+              <mesh key={p.id} position={[p.x, 1, p.z]}>
+                  <sphereGeometry args={[2, 16, 16]} />
+                  <meshStandardMaterial color="#00FFFF" emissive="#00FFFF" emissiveIntensity={2} />
+                  <pointLight distance={10} intensity={2} color="#00FFFF" />
+              </mesh>
+           ))}
+        </group>
+    );
+}
+
 function GameLogic() {
   const gameState = useStore(state => state.gameState);
 
@@ -28,9 +50,13 @@ function GameLogic() {
            }
         }
         
+        // Cleanup out of bounds projectiles (just random large bounds for now)
+        const updatedProjectiles = state.projectiles.filter(p => Math.abs(p.x) < 2000 && Math.abs(p.z) < 2000);
+        
         return {
            time: state.time + delta,
-           position: pPos
+           position: pPos,
+           projectiles: updatedProjectiles.length !== state.projectiles.length ? updatedProjectiles : state.projectiles
         };
       });
     }
@@ -100,6 +126,7 @@ export function GameScene() {
 
       <GameEnvironment />
       <GameLogic />
+      <ProjectilesRenderer />
       
       {/* Sparkles removed for performance */}
       
@@ -112,7 +139,7 @@ export function GameScene() {
       <AI index={4} offset={0.05} color="#00FF66" speedOffset={0.99} />
 
       {/* Lightweight Post-Processing */}
-      <EffectComposer disableNormalPass>
+      <EffectComposer>
         <Bloom luminanceThreshold={0.5} mipmapBlur intensity={1.0} />
         <ChromaticAberration offset={CHROMATIC_OFFSET} />
         <Vignette eskil={false} offset={0.1} darkness={1.1} />
