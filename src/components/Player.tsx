@@ -308,9 +308,9 @@ export function Player() {
     let rotChange = 0;
     if (gameState === 'PLAYING') {
       if (keys.left) {
-        rotChange = TURN_SPEED * driftMultiplier * speedFactor * weatherTurnMult * delta;
-      } else if (keys.right) {
         rotChange = -TURN_SPEED * driftMultiplier * speedFactor * weatherTurnMult * delta;
+      } else if (keys.right) {
+        rotChange = TURN_SPEED * driftMultiplier * speedFactor * weatherTurnMult * delta;
       }
     }
 
@@ -480,11 +480,11 @@ export function Player() {
         v_curvePoint.set(closest.point.x, newPos.y, closest.point.z);
         v_pushDir.copy(newPos).sub(v_curvePoint).normalize();
         
-        // Snap explicitly to the absolute mathematical bound
-        newPos.copy(v_curvePoint).add(v_pushDir.multiplyScalar(trackWidth));
+        // Snap explicitly to the absolute mathematical bound but leave a tiny margin
+        newPos.copy(v_curvePoint).add(v_pushDir.multiplyScalar(trackWidth - 0.1));
         
-        // Harsh friction
-        currentVel *= 0.6;
+        // Gentle friction so they don't get completely blocked
+        currentVel *= 0.85;
         boostRef.current = 0; // kill boost on wall hit
         
         // Play Crash Sound if it's a new hit and moving reasonably fast
@@ -503,12 +503,14 @@ export function Player() {
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         
         if (Math.abs(angleDiff) < Math.PI / 2) {
-            groupRef.current.rotation.y += angleDiff * 0.15;
+            groupRef.current.rotation.y += angleDiff * 0.1;
         } else {
             let backDiff = (targetAngle + Math.PI) - groupRef.current.rotation.y;
             while (backDiff > Math.PI) backDiff -= Math.PI * 2;
             while (backDiff < -Math.PI) backDiff += Math.PI * 2;
-            groupRef.current.rotation.y += backDiff * 0.15;
+            groupRef.current.rotation.y += backDiff * 0.1;
+            // Also push slightly forward along track if they are completely flipped and hitting a wall to unstick them
+            currentVel = Math.max(currentVel, 5);
         }
     }
 
@@ -565,8 +567,8 @@ export function Player() {
     // Visual Lean
     let leanTarget = 0;
     if (gameState === 'PLAYING') {
-        if (keys.left) leanTarget = Math.PI / 12;
-        if (keys.right) leanTarget = -Math.PI / 12;
+        if (keys.left) leanTarget = -Math.PI / 12;
+        if (keys.right) leanTarget = Math.PI / 12;
         if (keys.drift) leanTarget *= 1.5; 
     }
     
