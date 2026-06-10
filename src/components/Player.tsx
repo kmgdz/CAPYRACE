@@ -166,6 +166,7 @@ export function Player() {
        audioSystem.updateListener(state.camera.position, v_reusableVec1.copy(lookTarget).sub(state.camera.position).normalize(), state.camera.up);
        
        audioSystem.updateEngine('player', frame.boost ? 1.0 : (frame.drift ? 0.6 : 0.4), groupRef.current.position);
+       audioSystem.setDrifting(frame.drift);
        
        replayIndexRef.current += 1;
        return;
@@ -686,8 +687,10 @@ export function Player() {
     // Update engine audio based on speed
     if (gameState === 'PLAYING') {
        audioSystem.updateEngine('player', cameraSpeedFactor, groupRef.current.position);
+       audioSystem.setDrifting(driftRef.current > 0);
     } else if (gameState === 'COUNTDOWN') {
        audioSystem.updateEngine('player', keys.forward ? 0.4 + Math.random() * 0.1 : 0.0, groupRef.current.position);
+       audioSystem.setDrifting(false);
     }
   });
 

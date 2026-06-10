@@ -58,6 +58,16 @@ function PlayingHUD() {
   const posRef = useRef<HTMLParagraphElement>(null);
   const rpmRef = useRef<SVGPathElement>(null);
 
+  const [showFinalLap, setShowFinalLap] = useState(false);
+
+  useEffect(() => {
+    if (lap === maxLaps && maxLaps > 1) {
+      setShowFinalLap(true);
+      const timer = setTimeout(() => setShowFinalLap(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [lap, maxLaps]);
+
   useEffect(() => {
     let frameId: number;
     const loop = () => {
@@ -215,6 +225,22 @@ function PlayingHUD() {
         </div>
       </div>
       
+      <AnimatePresence>
+        {showFinalLap && (
+          <motion.div 
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: [1, 1.2, 1], opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-50"
+          >
+            <h2 className="text-6xl md:text-9xl font-black italic text-transparent bg-clip-text bg-gradient-to-br from-yellow-300 via-orange-500 to-red-600 drop-shadow-[0_0_50px_rgba(255,100,0,0.8)] tracking-tighter">
+              FINAL LAP!
+            </h2>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <Minimap />
     </motion.div>
   );
@@ -430,7 +456,6 @@ export function UI() {
             <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-orange-400 to-orange-600 mb-4 text-center select-none font-sans uppercase tracking-tighter drop-shadow-[0_0_20px_rgba(255,100,0,0.5)]">
               CapyRace
             </h1>
-            <p className="text-orange-200 mb-6 text-lg uppercase tracking-widest font-mono drop-shadow-md">Grand Prix 2026</p>
             
             {/* Track Selection */}
             <div className="mb-4 border-t border-b border-cyan-500/30 py-4 px-4 w-full max-w-3xl bg-black/40 backdrop-blur-md rounded-xl shadow-[0_0_30px_rgba(0,100,255,0.1)]">

@@ -178,6 +178,59 @@ class AudioSystem {
     engine.engineGain.gain.setTargetAtTime(targetVol, this.ctx.currentTime, 0.1);
   }
 
+  // Active drift loop state
+  driftOsc: OscillatorNode | null = null;
+  driftGain: GainNode | null = null;
+  isDrifting: boolean = false;
+
+  setDrifting(drifting: boolean) {
+    if (!this.ctx || !this.sfxGain) return;
+    if (this.ctx.state === 'suspended' && !this.isResuming) {
+       this.isResuming = true;
+       this.ctx.resume().finally(() => { this.isResuming = false; });
+    }
+
+    if (drifting && !this.isDrifting) {
+       this.isDrifting = true;
+       this.driftOsc = this.ctx.createOscillator();
+       this.driftOsc.type = 'sawtooth';
+       this.driftGain = this.ctx.createGain();
+       this.driftGain.gain.value = 0;
+       
+       const filter = this.ctx.createBiquadFilter();
+       filter.type = 'bandpass';
+       filter.frequency.value = 1500;
+       filter.Q.value = 1;
+       
+       this.driftOsc.connect(filter);
+       if (this.noiseNode) {
+           const noiseFilter = this.ctx.createBiquadFilter();
+           noiseFilter.type = 'highpass';
+           noiseFilter.frequency.value = 1000;
+           this.noiseNode.connect(noiseFilter);
+           noiseFilter.connect(this.driftGain);
+       }
+       filter.connect(this.driftGain);
+       this.driftGain.connect(this.sfxGain);
+       
+       this.driftOsc.frequency.setValueAtTime(800, this.ctx.currentTime);
+       this.driftOsc.start();
+       
+       this.driftGain.gain.setTargetAtTime(0.3, this.ctx.currentTime, 0.1);
+    } else if (!drifting && this.isDrifting) {
+       this.isDrifting = false;
+       if (this.driftGain) {
+           this.driftGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+           const osc = this.driftOsc;
+           setTimeout(() => {
+               try { osc?.stop(); osc?.disconnect(); } catch(e) {}
+           }, 200);
+       }
+       this.driftGain = null;
+       this.driftOsc = null;
+    }
+  }
+
   playCrash(position?: THREE.Vector3) {
     if (!this.ctx || !this.sfxGain) return;
     if (this.ctx.state === 'suspended' && !this.isResuming) {
