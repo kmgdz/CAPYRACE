@@ -101,6 +101,9 @@ export function Player() {
   useFrame((state, delta) => {
     if (!groupRef.current || !meshRef.current) return;
     
+    // Always read gameState fresh from store inside useFrame to avoid stale closure
+    const gameState = useStore.getState().gameState;
+    
     if (gameState === 'PAUSED') {
        audioSystem.updateEngine('player', 0, groupRef.current.position);
        return;
@@ -290,7 +293,7 @@ export function Player() {
       }
       
       // Sync nitro back to store without causing re-render loops
-      if (Math.abs(useStore.getState().nitro - currentNitro) > 1) {
+      if (Math.abs(useStore.getState().nitro - currentNitro) > 0.5) {
           useStore.getState().setNitro(currentNitro);
       }
     } else {
@@ -364,7 +367,8 @@ export function Player() {
           const dx = box.position.x - p2x;
           const dz = box.position.z - p2z;
           if (dx*dx + dz*dz < box.radiusSq) {
-              // Hit item box!
+              // Hit item box! Don't overwrite an existing held powerup
+              if (storeState.activePowerup !== null) continue;
               storeState.setItemBoxActive(box.id, false);
               setTimeout(() => {
                  useStore.getState().setItemBoxActive(box.id, true);
@@ -464,6 +468,24 @@ export function Player() {
               }
           }
       }
+
+      // Incoming Projectile Hit Detection (player can be hit too!)
+      if (spinOutTimerRef.current <= 0 && !useStore.getState().isShielded) {
+          const projectiles = useStore.getState().projectiles;
+          for (let i = 0; i < projectiles.length; i++) {
+              const proj = projectiles[i];
+              const dx = proj.x - p2x;
+              const dz = proj.z - p2z;
+              if (dx*dx + dz*dz < 25) { // 5 unit radius
+                  spinOutTimerRef.current = 1.5;
+                  currentVel = 0;
+                  boostRef.current = 0;
+                  audioSystem.playCrash(groupRef.current.position);
+                  useStore.getState().removeProjectile(proj.id);
+                  break;
+              }
+          }
+      }
     }
 
     // Clamp to track bounds using local search
@@ -553,11 +575,13 @@ export function Player() {
 
       // Must pass halfway to count lap (prevents reversing through start)
       if (progressIndexRef.current > pathPoints.length * 0.9 && newIdx < pathPoints.length * 0.1 && currentVel > 0 && hasPassedHalfwayRef.current) {
-        if (lap + 1 > maxLaps) {
+        const currentLap = useStore.getState().lap;
+        const currentMaxLaps = useStore.getState().maxLaps;
+        if (currentLap + 1 > currentMaxLaps) {
           useStore.getState().setReplayData([...replayFramesRef.current]);
-          setGameState('FINISHED');
+          useStore.getState().setGameState('FINISHED');
         } else {
-          setLap(lap + 1);
+          useStore.getState().setLap(currentLap + 1);
           hasPassedHalfwayRef.current = false;
         }
       }

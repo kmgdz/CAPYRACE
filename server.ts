@@ -48,6 +48,15 @@ app.post("/api/leaderboard", async (req, res) => {
     if (!name || !time) {
        return res.status(400).json({ error: "Name and time are required" });
     }
+    // Sanitize inputs
+    const cleanName = String(name).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+    const cleanTime = parseFloat(time);
+    if (!cleanName || cleanName.length === 0) {
+       return res.status(400).json({ error: "Invalid name" });
+    }
+    if (isNaN(cleanTime) || cleanTime <= 0 || cleanTime > 3600) {
+       return res.status(400).json({ error: "Invalid time" });
+    }
     
     let data;
     const isKV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
@@ -64,8 +73,8 @@ app.post("/api/leaderboard", async (req, res) => {
     
     data.push({
       id: Date.now(),
-      name,
-      time,
+      name: cleanName,
+      time: cleanTime,
       date: new Date().toISOString()
     });
     

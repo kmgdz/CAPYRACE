@@ -29,7 +29,8 @@ export function KartVisuals({ color = "#FF3300", capyRef, type = 'classic', isBo
               1 + Math.cos(t * 60) * 0.2,
               isBoosting ? 2.0 + Math.sin(t * 80) * 0.5 : 1.0 + Math.sin(t * 40) * 0.2
           );
-          exhaustRef.current.visible = isBoosting || Math.random() > 0.5;
+          // Use time-based flicker instead of Math.random() to prevent every-frame state thrash
+          exhaustRef.current.visible = isBoosting || Math.sin(t * 30) > 0;
       }
   });
 

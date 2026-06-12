@@ -263,15 +263,15 @@ function FinishedHUD({ bestTime, submitLeaderboard, playerName, setPlayerName, h
           let medal = null;
           let label = '';
           let color = '';
-          if (time <= 65) {
+          if (time <= 120) {
               medal = '🏆';
               label = 'GOLD MEDAL';
               color = 'text-yellow-400 drop-shadow-[0_0_15px_rgba(255,215,0,0.8)]';
-          } else if (time <= 75) {
+          } else if (time <= 150) {
               medal = '🥈';
               label = 'SILVER MEDAL';
               color = 'text-gray-300 drop-shadow-[0_0_15px_rgba(192,192,192,0.8)]';
-          } else if (time <= 90) {
+          } else if (time <= 200) {
               medal = '🥉';
               label = 'BRONZE MEDAL';
               color = 'text-amber-600 drop-shadow-[0_0_15px_rgba(205,127,50,0.8)]';
@@ -374,6 +374,9 @@ export function UI() {
 
   const handleStart = () => {
     audioSystem.init();
+    setCountdownText('3');
+    setHasSubmitted(false);
+    setPlayerName('');
     resetRace();
   };
 
@@ -409,6 +412,7 @@ export function UI() {
         if (step < texts.length) {
           setCountdownText(texts[step]);
           if (texts[step] === 'GO!') {
+            clearInterval(interval);
             setGameState('PLAYING');
           }
         }

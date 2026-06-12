@@ -8,7 +8,7 @@ function WeatherParticles() {
   const weather = useStore(state => state.weather);
   const meshRef = useRef<THREE.InstancedMesh>(null);
   
-  const count = 15000;
+  const count = 3000;
   const areaSize = 300;
   const areaHeight = 150;
 

@@ -34,13 +34,16 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
   useFrame((state, delta) => {
     if (!groupRef.current || !meshRef.current) return;
     
+    const gameState = useStore.getState().gameState;
     const trackConfig = TRACKS[useStore.getState().trackType];
     const { trackCurve, mudPitsData, movingHazardsData } = trackConfig;
     
     if (gameState === 'MENU' || gameState === 'COUNTDOWN') {
       lapRef.current = 1;
+      progressRef.current = (1 + initialOffsetDist) % 1;
+      spinOutTimerRef.current = 0;
       // Just set them on their initial positions
-      const startT = (1 + initialOffsetDist) % 1;
+      const startT = progressRef.current;
       const point = trackCurve.getPointAt(startT, v_point);
       audioSystem.updateEngine(`ai_${index}`, 0, point);
       const tangent = trackCurve.getTangentAt(startT, v_tangent).normalize();
@@ -53,7 +56,6 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
       
       groupRef.current.position.set(finalPos.x, 1.5, finalPos.z);
       groupRef.current.rotation.set(0, angle, 0);
-      progressRef.current = startT;
       return;
     }
 
@@ -200,7 +202,7 @@ export function AI({ index = 0, offset = 0, color = "#ffcc00", speedOffset = 1 }
     <group ref={groupRef}>
       <Trail width={trailWidth} length={trailLength} color={resolvedTrailColor} attenuation={(t) => t * t}>
         <group ref={meshRef} scale={1.5}>
-           <KartVisuals capyRef={capyRef} color={color} type={kartType} isBoosting={gameState === 'PLAYING' && Math.random() > 0.8} />
+           <KartVisuals capyRef={capyRef} color={color} type={kartType} isBoosting={false} />
         </group>
       </Trail>
     </group>

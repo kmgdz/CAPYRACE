@@ -10,18 +10,12 @@ import * as THREE from 'three';
 
 function ProjectilesRenderer() {
     const projectiles = useStore(state => state.projectiles);
-    
-    useFrame((_, delta) => {
-        if (useStore.getState().projectiles.length > 0) {
-            useStore.getState().updateProjectiles(delta);
-        }
-    });
 
     return (
         <group>
            {projectiles.map(p => (
               <mesh key={p.id} position={[p.x, 1, p.z]}>
-                  <sphereGeometry args={[2, 16, 16]} />
+                  <sphereGeometry args={[0.4, 8, 8]} />
                   <meshStandardMaterial color="#00FFFF" emissive="#00FFFF" emissiveIntensity={2} />
                   <pointLight distance={10} intensity={2} color="#00FFFF" />
               </mesh>
@@ -34,7 +28,7 @@ function GameLogic() {
   const gameState = useStore(state => state.gameState);
 
   useFrame((_, delta) => {
-    if (gameState === 'PLAYING') {
+    if (useStore.getState().gameState === 'PLAYING') {
       useStore.setState((state) => {
         let playerProgress = 0;
         let pPos = 1;
@@ -53,10 +47,18 @@ function GameLogic() {
         // Cleanup out of bounds projectiles (just random large bounds for now)
         const updatedProjectiles = state.projectiles.filter(p => Math.abs(p.x) < 2000 && Math.abs(p.z) < 2000);
         
+        // Move projectiles
+        const speed = 100 * delta;
+        const movedProjectiles = updatedProjectiles.map(p => ({
+          ...p,
+          x: p.x + p.dirX * speed,
+          z: p.z + p.dirZ * speed,
+        }));
+        
         return {
            time: state.time + delta,
            position: pPos,
-           projectiles: updatedProjectiles.length !== state.projectiles.length ? updatedProjectiles : state.projectiles
+           projectiles: movedProjectiles
         };
       });
     }

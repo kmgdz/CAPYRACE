@@ -155,5 +155,5 @@ export const useStore = create<StoreState>((set) => ({
       }
     } catch(e) { console.error(e); }
   },
-  resetRace: () => set({ lap: 1, time: 0, gameState: 'COUNTDOWN', position: 1, speed: 0, nitro: 0, activePowerup: null, isShielded: false, isHyperSpeed: false }),
+  resetRace: () => set({ lap: 1, time: 0, gameState: 'COUNTDOWN', position: 1, speed: 0, nitro: 0, activePowerup: null, isShielded: false, isHyperSpeed: false, projectiles: [], replayData: [], racers: {}, activeBoxes: {}, activeNitros: {} }),
 }));

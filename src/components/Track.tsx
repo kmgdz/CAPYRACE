@@ -43,11 +43,11 @@ function ItemBoxes() {
                    }}
                 >
                     <mesh castShadow>
-                        <boxGeometry args={[4, 4, 4]} />
+                        <boxGeometry args={[2, 2, 2]} />
                         <meshStandardMaterial color="#FF00FF" emissive="#FF00FF" emissiveIntensity={0.5} transparent opacity={0.6} wireframe />
                     </mesh>
                     <mesh>
-                        <boxGeometry args={[3.8, 3.8, 3.8]} />
+                        <boxGeometry args={[1.8, 1.8, 1.8]} />
                         <meshStandardMaterial color="#00FFFF" transparent opacity={0.8} />
                     </mesh>
                 </group>
@@ -616,11 +616,11 @@ export function Track() {
       {cratesData.map((crate, i) => (
         <group key={`crate-${i}`} position={crate.position} rotation={[0, Math.sin(i)*Math.PI, 0]}>
             <mesh castShadow receiveShadow position={[0, -0.5, 0]}>
-                <boxGeometry args={[4, 4, 4]} />
+                <boxGeometry args={[2, 2, 2]} />
                 <meshStandardMaterial color="#8B4513" roughness={0.9} map={null} />
             </mesh>
             <mesh position={[0, -0.5, 0]}>
-                <boxGeometry args={[4.2, 4.2, 4.2]} />
+                <boxGeometry args={[2.2, 2.2, 2.2]} />
                 <meshStandardMaterial color="#FF3300" opacity={0.6} transparent wireframe emissive="#FF3300" emissiveIntensity={0.5} />
             </mesh>
             <pointLight distance={10} intensity={0.5} color="#FF3300" />

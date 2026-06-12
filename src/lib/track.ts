@@ -63,7 +63,7 @@ function createTrackData(points: THREE.Vector3[], config: { numBoosts: number, n
         const tangent = trackCurve.getTangentAt(t).normalize();
         const right = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();
         for (let j = -1; j <= 1; j++) {
-            itemBoxesData.push({ id: `box-${i}-${j}`, position: p.clone().addScaledVector(right, j * 8).setY(1), radiusSq: 9 });
+            itemBoxesData.push({ id: `box-${i}-${j}`, position: p.clone().addScaledVector(right, j * 8).setY(1), radiusSq: 4 });
         }
     }
 
@@ -75,7 +75,7 @@ function createTrackData(points: THREE.Vector3[], config: { numBoosts: number, n
         const tangent = trackCurve.getTangentAt(t).normalize();
         const right = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();
         const lateralOffset = (((s(i * 77.123 + seed) * 43758.5453) % 1) - 0.5) * 20;
-        cratesData.push({ id: `crate-${i}`, position: p.clone().addScaledVector(right, lateralOffset).setY(1.5), radiusSq: 16 });
+        cratesData.push({ id: `crate-${i}`, position: p.clone().addScaledVector(right, lateralOffset).setY(1.5), radiusSq: 4 });
     }
 
     // Mud Pits
@@ -86,7 +86,7 @@ function createTrackData(points: THREE.Vector3[], config: { numBoosts: number, n
         const tangent = trackCurve.getTangentAt(t).normalize();
         const right = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 1, 0)).normalize();
         const lateralOffset = (((s(i * 33.123 + seed) * 43758.5453) % 1) - 0.5) * 16;
-        mudPitsData.push({ position: p.clone().addScaledVector(right, lateralOffset).setY(0.1), radius: 12, radiusSq: 144 });
+        mudPitsData.push({ position: p.clone().addScaledVector(right, lateralOffset).setY(0.1), radius: 6, radiusSq: 36 });
     }
 
     // Hazards
